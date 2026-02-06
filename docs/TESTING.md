@@ -20,9 +20,10 @@
 | `settings_test.rs` | 10 | 设置管理 |
 | `sites_test.rs` | 12 | 站点配置 |
 | `update_test.rs` | 18 | 更新管理器 |
+| `plugin_test.rs` | 6 | 插件生命周期管理 |
 | `monitor_test.rs` | 1 | 显示器集成 |
 | `performance_test.rs` | 9 | 性能优化配置 |
-| **小计** | **88** | **Rust 后端全覆盖** |
+| **小计** | **94** | **Rust 后端全覆盖** |
 
 #### 前端 (TypeScript)
 
@@ -36,11 +37,12 @@
 | `settings_store.test.ts` | 20+ | 设置存储管理 |
 | `plugin_api.test.ts` | 23 | 插件 API 系统 |
 | `plugin_registry.test.ts` | 29 | 插件注册表 |
-| **小计** | **226+** | **前端核心模块覆盖** |
+| `plugin_loader.test.ts` | 12 | 插件加载器与安装 |
+| **小计** | **238+** | **前端核心模块覆盖** |
 
 #### 总计
 
-**314+ 测试用例**,实现前后端核心功能的全面测试覆盖。
+**332+ 测试用例**,实现前后端核心功能的全面测试覆盖。
 
 ### 运行测试
 

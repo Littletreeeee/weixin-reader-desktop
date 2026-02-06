@@ -4,12 +4,44 @@ use tauri::{
 };
 use tauri_plugin_opener::OpenerExt;
 
+use crate::plugin_manager;
+
+/// 插件网站菜单项信息
+struct PluginSiteMenuItem {
+    id: String,
+    name: String,
+    url: String,
+}
+
+/// 获取已安装插件的网站菜单项
+fn get_plugin_site_items<R: Runtime>(handle: &tauri::AppHandle<R>) -> Vec<PluginSiteMenuItem> {
+    let mut items = Vec::new();
+    
+    // 获取外部插件
+    if let Ok(plugins) = plugin_manager::get_installed_plugins(handle) {
+        for plugin in plugins {
+            if let Some(site) = plugin.site {
+                items.push(PluginSiteMenuItem {
+                    id: format!("plugin_site_{}", plugin.id),
+                    name: format!("{}", plugin.name),
+                    url: site.home_url,
+                });
+            }
+        }
+    }
+    
+    items
+}
+
 // Re-export monitor module functions for convenience
 #[cfg(target_os = "macos")]
 use crate::monitor::{get_current_monitor_index as get_current_screen_index, get_macos_display_names, calculate_center_position, start_position_monitoring};
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(target_os = "windows")]
 use crate::monitor::{get_current_monitor_index as get_current_screen_index, get_display_names, calculate_center_position, start_position_monitoring};
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+use crate::monitor::{get_current_monitor_index as get_current_screen_index, get_display_names, calculate_center_position};
 
 /// Build menu items for available monitors (excluding current)
 /// Returns a vector of menu items that can be added directly to the window menu
@@ -68,41 +100,59 @@ fn build_monitor_menu_items<R: Runtime>(handle: &tauri::AppHandle<R>) -> tauri::
 
 /// Rebuild the entire menu (called after window moves)
 /// This recreates the menu with updated monitor items based on current window position
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 fn rebuild_full_menu<R: Runtime>(handle: &tauri::AppHandle<R>) -> tauri::Result<()> {
     eprintln!("DEBUG: Rebuilding menu after window move...");
 
     // Load current settings
     let initial_settings = get_initial_settings(handle);
 
-    // 1. App Menu
+    // Common menu items
     let about = MenuItem::with_id(handle, "about", "关于", true, None::<&str>)?;
     let check_update = MenuItem::with_id(handle, "check_update", "检查更新...", true, None::<&str>)?;
     let settings = MenuItem::with_id(handle, "settings", "设置...", true, Some("CmdOrCtrl+,"))?;
-
-    let hide = PredefinedMenuItem::hide(handle, Some("隐藏"))?;
-    let hide_others = PredefinedMenuItem::hide_others(handle, Some("隐藏其他"))?;
-    let show_all = PredefinedMenuItem::show_all(handle, Some("显示全部"))?;
     let quit = PredefinedMenuItem::quit(handle, Some("退出"))?;
 
-    let app_menu = Submenu::with_items(
+    // macOS-only: App Menu with hide/show items
+    #[cfg(target_os = "macos")]
+    let app_menu = {
+        let hide = PredefinedMenuItem::hide(handle, Some("隐藏"))?;
+        let hide_others = PredefinedMenuItem::hide_others(handle, Some("隐藏其他"))?;
+        let show_all = PredefinedMenuItem::show_all(handle, Some("显示全部"))?;
+
+        Submenu::with_items(
+            handle,
+            "App",
+            true,
+            &[
+                &about,
+                &check_update,
+                &PredefinedMenuItem::separator(handle)?,
+                &settings,
+                &PredefinedMenuItem::separator(handle)?,
+                &hide,
+                &hide_others,
+                &show_all,
+                &PredefinedMenuItem::separator(handle)?,
+                &quit,
+            ],
+        )?
+    };
+
+    // Windows: File Menu (settings, quit)
+    #[cfg(target_os = "windows")]
+    let file_menu = Submenu::with_items(
         handle,
-        "App",
+        "文件",
         true,
         &[
-            &about,
-            &check_update,
-            &PredefinedMenuItem::separator(handle)?,
             &settings,
-            &PredefinedMenuItem::separator(handle)?,
-            &hide,
-            &hide_others,
-            &show_all,
             &PredefinedMenuItem::separator(handle)?,
             &quit,
         ],
     )?;
 
-    // 2. View Menu
+    // View Menu (same for all platforms)
     let refresh = MenuItem::with_id(handle, "refresh", "刷新", true, Some("CmdOrCtrl+R"))?;
     let back = MenuItem::with_id(handle, "back", "后退", true, Some("CmdOrCtrl+["))?;
     let forward = MenuItem::with_id(handle, "forward", "前进", true, Some("CmdOrCtrl+]"))?;
@@ -112,12 +162,15 @@ fn rebuild_full_menu<R: Runtime>(handle: &tauri::AppHandle<R>) -> tauri::Result<
     let zoom_in = MenuItem::with_id(handle, "zoom_in", "放大", true, Some("CmdOrCtrl+="))?;
     let zoom_out = MenuItem::with_id(handle, "zoom_out", "缩小", true, Some("CmdOrCtrl+-"))?;
 
+    // Windows: Use F11 for fullscreen toggle
+    #[cfg(target_os = "windows")]
+    let toggle_fullscreen = MenuItem::with_id(handle, "toggle_fullscreen", "切换全屏", true, Some("F11"))?;
+    #[cfg(target_os = "macos")]
     let toggle_fullscreen = PredefinedMenuItem::fullscreen(handle, Some("切换全屏"))?;
 
     let reader_wide = CheckMenuItem::with_id(handle, "reader_wide", "阅读变宽", true, initial_settings.reader_wide, Some("CmdOrCtrl+9"))?;
     let hide_cursor = CheckMenuItem::with_id(handle, "hide_cursor", "隐藏光标", true, initial_settings.hide_cursor, Some("CmdOrCtrl+8"))?;
     let hide_toolbar = CheckMenuItem::with_id(handle, "hide_toolbar", "隐藏工具栏", true, initial_settings.hide_toolbar, Some("CmdOrCtrl+O"))?;
-    // hide_navbar 始终启用，让用户可以随时点击（前端会判断是否在双栏模式）
     let hide_navbar = CheckMenuItem::with_id(handle, "hide_navbar", "隐藏导航栏", true, initial_settings.hide_navbar, Some("CmdOrCtrl+P"))?;
 
     let view_menu = Submenu::with_items(
@@ -144,13 +197,11 @@ fn rebuild_full_menu<R: Runtime>(handle: &tauri::AppHandle<R>) -> tauri::Result<
         ],
     )?;
 
-    // 3. Window Menu - Rebuild monitor items (THIS IS THE KEY PART)
+    // Window Menu - Rebuild monitor items
     let monitor_items = build_monitor_menu_items(handle)?;
     let minimize = PredefinedMenuItem::minimize(handle, Some("最小化"))?;
     let close_window = PredefinedMenuItem::close_window(handle, Some("关闭"))?;
 
-    // Build window menu - use append() to dynamically add monitor items
-    // This avoids Box::leak memory leak
     let window_menu = Submenu::with_items(
         handle,
         "窗口",
@@ -161,41 +212,78 @@ fn rebuild_full_menu<R: Runtime>(handle: &tauri::AppHandle<R>) -> tauri::Result<
         ]
     )?;
 
-    // Dynamically append monitor items (no Box::leak needed!)
     for item in &monitor_items {
         window_menu.append(item)?;
     }
-
-    // Append close at the end
     window_menu.append(&close_window)?;
 
-    // 4. Help Menu
+    // Help Menu - 包含插件网站入口
     let official_site = MenuItem::with_id(handle, "official_site", "微信读书官网", true, None::<&str>)?;
-    let help_menu = Submenu::with_items(
-        handle,
-        "帮助",
-        true,
-        &[
-            &official_site
-        ]
-    )?;
+    let plugin_sites = get_plugin_site_items(handle);
 
+    // macOS: Help menu only has official site and plugin sites
+    #[cfg(target_os = "macos")]
+    let help_menu = {
+        let menu = Submenu::with_items(
+            handle,
+            "帮助",
+            true,
+            &[&official_site]
+        )?;
+        
+        // 动态添加插件网站入口
+        if !plugin_sites.is_empty() {
+            menu.append(&PredefinedMenuItem::separator(handle)?)?;
+            for site in &plugin_sites {
+                let item = MenuItem::with_id(handle, &site.id, &site.name, true, None::<&str>)?;
+                menu.append(&item)?;
+            }
+        }
+        menu
+    };
+
+    // Windows: Help menu includes About and Check Update
+    #[cfg(target_os = "windows")]
+    let help_menu = {
+        let menu = Submenu::with_items(
+            handle,
+            "帮助",
+            true,
+            &[&official_site]
+        )?;
+        
+        // 动态添加插件网站入口
+        if !plugin_sites.is_empty() {
+            menu.append(&PredefinedMenuItem::separator(handle)?)?;
+            for site in &plugin_sites {
+                let item = MenuItem::with_id(handle, &site.id, &site.name, true, None::<&str>)?;
+                menu.append(&item)?;
+            }
+        }
+        
+        menu.append(&PredefinedMenuItem::separator(handle)?)?;
+        menu.append(&check_update)?;
+        menu.append(&about)?;
+        menu
+    };
+
+    // Build final menu based on platform
+    #[cfg(target_os = "macos")]
     let menu = Menu::with_items(
         handle,
-        &[
-            &app_menu,
-            &view_menu,
-            &window_menu,
-            &help_menu
-        ],
+        &[&app_menu, &view_menu, &window_menu, &help_menu],
     )?;
 
-    // Set the new menu
+    #[cfg(target_os = "windows")]
+    let menu = Menu::with_items(
+        handle,
+        &[&file_menu, &view_menu, &window_menu, &help_menu],
+    )?;
+
     handle.set_menu(menu)?;
 
     eprintln!("DEBUG: Menu rebuilt successfully");
 
-    // Notify frontend to resync menu state
     if let Some(main_window) = handle.get_webview_window("main") {
         let _ = main_window.emit("menu-rebuilt", ());
         eprintln!("DEBUG: Emitted menu-rebuilt event to frontend");
@@ -207,8 +295,8 @@ fn rebuild_full_menu<R: Runtime>(handle: &tauri::AppHandle<R>) -> tauri::Result<
 pub fn init<R: Runtime>(app: &mut App<R>) -> tauri::Result<()> {
     let handle = app.handle();
 
-    // Start window position monitoring
-    #[cfg(target_os = "macos")]
+    // Start window position monitoring (macOS and Windows)
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
     {
         let handle_clone = handle.clone();
         start_position_monitoring(handle_clone.clone(), move |h| rebuild_full_menu(h));
@@ -217,30 +305,46 @@ pub fn init<R: Runtime>(app: &mut App<R>) -> tauri::Result<()> {
     // Load initial settings to set menu states correctly
     let initial_settings = get_initial_settings(handle);
 
-    // 1. App Menu (macOS only mostly)
+    // Common menu items
     let about = MenuItem::with_id(handle, "about", "关于", true, None::<&str>)?;
     let check_update = MenuItem::with_id(handle, "check_update", "检查更新...", true, None::<&str>)?;
     let settings = MenuItem::with_id(handle, "settings", "设置...", true, Some("CmdOrCtrl+,"))?;
-    // Use PredefinedMenuItem for quit - macOS handles it specially
     let quit = PredefinedMenuItem::quit(handle, Some("退出"))?;
 
-    let hide = PredefinedMenuItem::hide(handle, Some("隐藏"))?;
-    let hide_others = PredefinedMenuItem::hide_others(handle, Some("隐藏其他"))?;
-    let show_all = PredefinedMenuItem::show_all(handle, Some("显示全部"))?;
+    // macOS: App Menu with hide/show items
+    #[cfg(target_os = "macos")]
+    let app_menu = {
+        let hide = PredefinedMenuItem::hide(handle, Some("隐藏"))?;
+        let hide_others = PredefinedMenuItem::hide_others(handle, Some("隐藏其他"))?;
+        let show_all = PredefinedMenuItem::show_all(handle, Some("显示全部"))?;
 
-    let app_menu = Submenu::with_items(
+        Submenu::with_items(
+            handle,
+            "App",
+            true,
+            &[
+                &about,
+                &check_update,
+                &PredefinedMenuItem::separator(handle)?,
+                &settings,
+                &PredefinedMenuItem::separator(handle)?,
+                &hide,
+                &hide_others,
+                &show_all,
+                &PredefinedMenuItem::separator(handle)?,
+                &quit,
+            ],
+        )?
+    };
+
+    // Windows: File Menu
+    #[cfg(target_os = "windows")]
+    let file_menu = Submenu::with_items(
         handle,
-        "App",
+        "文件",
         true,
         &[
-            &about,
-            &check_update,
-            &PredefinedMenuItem::separator(handle)?,
             &settings,
-            &PredefinedMenuItem::separator(handle)?,
-            &hide,
-            &hide_others,
-            &show_all,
             &PredefinedMenuItem::separator(handle)?,
             &quit,
         ],
@@ -251,12 +355,11 @@ pub fn init<R: Runtime>(app: &mut App<R>) -> tauri::Result<()> {
         check_update_item: std::sync::Mutex::new(Some(check_update.clone()))
     });
 
-    // 2. View Menu
+    // View Menu
     let refresh = MenuItem::with_id(handle, "refresh", "刷新", true, Some("CmdOrCtrl+R"))?;
     let back = MenuItem::with_id(handle, "back", "后退", true, Some("CmdOrCtrl+["))?;
     let forward = MenuItem::with_id(handle, "forward", "前进", true, Some("CmdOrCtrl+]"))?;
 
-    // Use initial settings value for auto_flip
     let auto_flip_initial = initial_settings.auto_flip_active;
     let auto_flip = CheckMenuItem::with_id(handle, "auto_flip", "自动翻页", true, auto_flip_initial, Some("CmdOrCtrl+I"))?;
 
@@ -264,10 +367,14 @@ pub fn init<R: Runtime>(app: &mut App<R>) -> tauri::Result<()> {
     let zoom_in = MenuItem::with_id(handle, "zoom_in", "放大", true, Some("CmdOrCtrl+="))?;
     let zoom_out = MenuItem::with_id(handle, "zoom_out", "缩小", true, Some("CmdOrCtrl+-"))?;
 
-    // Native macOS Fullscreen MenuItem
+    // Fullscreen: macOS uses native, Windows uses F11
+    #[cfg(target_os = "macos")]
     let toggle_fullscreen = PredefinedMenuItem::fullscreen(handle, Some("切换全屏"))?;
+    #[cfg(target_os = "windows")]
+    let toggle_fullscreen = MenuItem::with_id(handle, "toggle_fullscreen", "切换全屏", true, Some("F11"))?;
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    let toggle_fullscreen = MenuItem::with_id(handle, "toggle_fullscreen", "切换全屏", true, Some("F11"))?;
 
-    // Use initial settings values for reader_wide and hide_toolbar
     let reader_wide_initial = initial_settings.reader_wide;
     let hide_cursor_initial = initial_settings.hide_cursor;
     let hide_toolbar_initial = initial_settings.hide_toolbar;
@@ -275,7 +382,6 @@ pub fn init<R: Runtime>(app: &mut App<R>) -> tauri::Result<()> {
     let reader_wide = CheckMenuItem::with_id(handle, "reader_wide", "阅读变宽", true, reader_wide_initial, Some("CmdOrCtrl+9"))?;
     let hide_cursor = CheckMenuItem::with_id(handle, "hide_cursor", "隐藏光标", true, hide_cursor_initial, Some("CmdOrCtrl+8"))?;
     let hide_toolbar = CheckMenuItem::with_id(handle, "hide_toolbar", "隐藏工具栏", true, hide_toolbar_initial, Some("CmdOrCtrl+O"))?;
-    // hide_navbar 始终启用，让用户可以随时点击（前端会判断是否在双栏模式）
     let hide_navbar = CheckMenuItem::with_id(handle, "hide_navbar", "隐藏导航栏", true, hide_navbar_initial, Some("CmdOrCtrl+P"))?;
 
     let view_menu = Submenu::with_items(
@@ -302,13 +408,11 @@ pub fn init<R: Runtime>(app: &mut App<R>) -> tauri::Result<()> {
         ],
     )?;
 
-    // 3. Window Menu - Build monitor items (excluding current)
+    // Window Menu
     let monitor_items = build_monitor_menu_items(handle)?;
     let minimize = PredefinedMenuItem::minimize(handle, Some("最小化"))?;
     let close_window = PredefinedMenuItem::close_window(handle, Some("关闭"))?;
 
-    // Build window menu - use append() to dynamically add monitor items
-    // This avoids Box::leak memory leak
     let window_menu = Submenu::with_items(
         handle,
         "窗口",
@@ -319,34 +423,114 @@ pub fn init<R: Runtime>(app: &mut App<R>) -> tauri::Result<()> {
         ]
     )?;
 
-    // Dynamically append monitor items (no Box::leak needed!)
     for item in &monitor_items {
         window_menu.append(item)?;
     }
-
-    // Append close at the end
     window_menu.append(&close_window)?;
 
-    // 4. Help Menu
+    // Help Menu - 包含插件网站入口
     let official_site = MenuItem::with_id(handle, "official_site", "微信读书官网", true, None::<&str>)?;
-    let help_menu = Submenu::with_items(
-        handle,
-        "帮助",
-        true,
-        &[
-            &official_site
-        ]
-    )?;
+    let plugin_sites = get_plugin_site_items(handle);
 
+    #[cfg(target_os = "macos")]
+    let help_menu = {
+        let menu = Submenu::with_items(
+            handle,
+            "帮助",
+            true,
+            &[&official_site]
+        )?;
+        
+        // 动态添加插件网站入口
+        if !plugin_sites.is_empty() {
+            menu.append(&PredefinedMenuItem::separator(handle)?)?;
+            for site in &plugin_sites {
+                let item = MenuItem::with_id(handle, &site.id, &site.name, true, None::<&str>)?;
+                menu.append(&item)?;
+            }
+        }
+        menu
+    };
+
+    #[cfg(target_os = "windows")]
+    let help_menu = {
+        let menu = Submenu::with_items(
+            handle,
+            "帮助",
+            true,
+            &[&official_site]
+        )?;
+        
+        // 动态添加插件网站入口
+        if !plugin_sites.is_empty() {
+            menu.append(&PredefinedMenuItem::separator(handle)?)?;
+            for site in &plugin_sites {
+                let item = MenuItem::with_id(handle, &site.id, &site.name, true, None::<&str>)?;
+                menu.append(&item)?;
+            }
+        }
+        
+        menu.append(&PredefinedMenuItem::separator(handle)?)?;
+        menu.append(&check_update)?;
+        menu.append(&about)?;
+        menu
+    };
+
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    let help_menu = {
+        let menu = Submenu::with_items(
+            handle,
+            "帮助",
+            true,
+            &[&official_site]
+        )?;
+        
+        // 动态添加插件网站入口
+        if !plugin_sites.is_empty() {
+            menu.append(&PredefinedMenuItem::separator(handle)?)?;
+            for site in &plugin_sites {
+                let item = MenuItem::with_id(handle, &site.id, &site.name, true, None::<&str>)?;
+                menu.append(&item)?;
+            }
+        }
+        
+        menu.append(&PredefinedMenuItem::separator(handle)?)?;
+        menu.append(&check_update)?;
+        menu.append(&about)?;
+        menu
+    };
+
+    // Build final menu based on platform
+    #[cfg(target_os = "macos")]
     let menu = Menu::with_items(
         handle,
-        &[
-            &app_menu,
-            &view_menu,
-            &window_menu,
-            &help_menu
-        ],
+        &[&app_menu, &view_menu, &window_menu, &help_menu],
     )?;
+
+    #[cfg(target_os = "windows")]
+    let menu = Menu::with_items(
+        handle,
+        &[&file_menu, &view_menu, &window_menu, &help_menu],
+    )?;
+
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    let menu = {
+        // For other platforms (Linux), use File menu structure similar to Windows
+        let file_menu = Submenu::with_items(
+            handle,
+            "文件",
+            true,
+            &[
+                &settings,
+                &PredefinedMenuItem::separator(handle)?,
+                &quit,
+            ],
+        )?;
+        Menu::with_items(
+            handle,
+            &[&file_menu, &view_menu, &window_menu, &help_menu],
+        )?
+    };
 
     app.set_menu(menu)?;
 
@@ -413,13 +597,23 @@ pub fn init<R: Runtime>(app: &mut App<R>) -> tauri::Result<()> {
                     let _ = win.emit("menu-action", "zoom_reset");
                 }
             }
+            "toggle_fullscreen" => {
+                // Windows/Linux: Toggle fullscreen manually
+                if let Some(win) = app.get_webview_window("main") {
+                    if let Ok(is_fullscreen) = win.is_fullscreen() {
+                        let _ = win.set_fullscreen(!is_fullscreen);
+                    }
+                }
+            }
             "about" => {
-                if let Some(win) = app.get_webview_window("about") {
+                // Open settings window and navigate to about section
+                if let Some(win) = app.get_webview_window("settings") {
                     let _ = win.set_focus();
+                    let _ = win.eval("window.navigateToSection && window.navigateToSection('about')");
                 } else {
-                     let _ = WebviewWindowBuilder::new(app, "about", WebviewUrl::App("about.html".into()))
-                        .title("关于")
-                        .inner_size(400.0, 300.0)
+                     let _ = WebviewWindowBuilder::new(app, "settings", WebviewUrl::App("settings.html?tab=about".into()))
+                        .title("设置")
+                        .inner_size(720.0, 560.0)
                         .center()
                         .resizable(false)
                         .build();
@@ -438,18 +632,16 @@ pub fn init<R: Runtime>(app: &mut App<R>) -> tauri::Result<()> {
                      // Restart and install
                      app.restart();
                 } else {
-                    if let Some(win) = app.get_webview_window("update") {
+                    // Open settings window and navigate to about section
+                    if let Some(win) = app.get_webview_window("settings") {
                         let _ = win.set_focus();
+                        let _ = win.eval("window.navigateToSection && window.navigateToSection('about'); window.triggerUpdateCheck && window.triggerUpdateCheck()");
                     } else {
-                        let _ = WebviewWindowBuilder::new(app, "update", WebviewUrl::App("update.html".into()))
-                            .title("检查更新")
-                            .inner_size(400.0, 300.0)
+                        let _ = WebviewWindowBuilder::new(app, "settings", WebviewUrl::App("settings.html?tab=about&action=check_update".into()))
+                            .title("设置")
+                            .inner_size(720.0, 560.0)
                             .center()
                             .resizable(false)
-                            .hidden_title(true)    // 隐藏标题
-                            .closable(false)       // 隐藏关闭按钮
-                            .minimizable(false)    // 隐藏最小化按钮
-                            .maximizable(false)    // 隐藏最大化按钮
                             .build();
                     }
                 }
@@ -460,7 +652,7 @@ pub fn init<R: Runtime>(app: &mut App<R>) -> tauri::Result<()> {
                 } else {
                      let _ = WebviewWindowBuilder::new(app, "settings", WebviewUrl::App("settings.html".into()))
                         .title("设置")
-                        .inner_size(400.0, 300.0)
+                        .inner_size(720.0, 560.0)
                         .center()
                         .resizable(false)
                         .build();
@@ -488,6 +680,24 @@ pub fn init<R: Runtime>(app: &mut App<R>) -> tauri::Result<()> {
                 std::process::exit(0);
             }
             _ => {
+                // Check if this is a "plugin_site_*" event
+                if id.starts_with("plugin_site_") {
+                    if let Some(plugin_id) = id.strip_prefix("plugin_site_") {
+                        // 查找插件的 homeUrl
+                        if let Ok(plugins) = plugin_manager::get_installed_plugins(app) {
+                            for plugin in plugins {
+                                if plugin.id == plugin_id {
+                                    if let Some(site) = plugin.site {
+                                        let _ = app.opener().open_url(&site.home_url, None::<&str>);
+                                    }
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    return;
+                }
+                
                 // Check if this is a "move_to_monitor_*" event
                 if id.starts_with("move_to_monitor_") {
                     if let Some(index_str) = id.strip_prefix("move_to_monitor_") {

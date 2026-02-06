@@ -25,6 +25,7 @@ export interface SiteSettings {
  * 应用设置总结构
  * - global: 全局设置（所有网站共享）
  * - sites: 站点特定设置（按 siteId 隔离）
+ * - pluginConfigs: 插件配置（按 pluginId 隔离）
  */
 export interface AppSettings {
   _version?: number;  // Managed by OptimisticLock
@@ -33,9 +34,13 @@ export interface AppSettings {
     autoUpdate?: boolean;
     lastPage?: boolean;  // 是否启用最后阅读位置恢复
     hideCursor?: boolean;  // 是否隐藏光标
+    enabledPlugins?: string[];  // 启用的插件列表，undefined = 全部启用（向后兼容）
   };
   sites?: {
     [siteId: string]: SiteSettings;
+  };
+  pluginConfigs?: {  // 插件配置（按 pluginId 隔离）
+    [pluginId: string]: Record<string, any>;
   };
 }
 
@@ -368,6 +373,69 @@ export class SettingsStore {
         listener(this.get());
     }
     return () => this.listeners.delete(listener);
+  }
+
+  // ==================== 插件管理方法 ====================
+
+  /**
+   * 检查插件是否启用
+   * undefined 表示全部启用（向后兼容旧版本）
+   */
+  public isPluginEnabled(pluginId: string): boolean {
+    const enabledPlugins = this.getGlobal().enabledPlugins;
+    if (enabledPlugins === undefined) return true;  // 兼容旧版：undefined = 全部启用
+    return enabledPlugins.includes(pluginId);
+  }
+
+  /**
+   * 获取启用的插件列表
+   * @returns undefined 表示全部启用，数组表示只启用列表中的插件
+   */
+  public getEnabledPlugins(): string[] | undefined {
+    return this.getGlobal().enabledPlugins;
+  }
+
+  /**
+   * 启用插件
+   * @param pluginId 插件 ID
+   */
+  public async enablePlugin(pluginId: string): Promise<void> {
+    const global = this.getGlobal();
+    const currentList = global.enabledPlugins;
+    
+    // 如果 undefined（全部启用），不需要操作
+    if (currentList === undefined) return;
+    
+    if (!currentList.includes(pluginId)) {
+      await this.updateGlobal({
+        enabledPlugins: [...currentList, pluginId]
+      });
+    }
+  }
+
+  /**
+   * 禁用插件
+   * @param pluginId 插件 ID
+   * @param allPluginIds 所有已注册的插件 ID 列表（当 enabledPlugins 为 undefined 时需要）
+   */
+  public async disablePlugin(pluginId: string, allPluginIds?: string[]): Promise<void> {
+    const global = this.getGlobal();
+    let currentList = global.enabledPlugins;
+    
+    // 如果 undefined，需要先初始化为所有插件 ID（排除要禁用的）
+    if (currentList === undefined) {
+      if (!allPluginIds) {
+        log.warn('[SettingsStore] disablePlugin: allPluginIds required when enabledPlugins is undefined');
+        // 如果没有提供 allPluginIds，只能设置为空数组（禁用所有）
+        currentList = [];
+      } else {
+        currentList = allPluginIds;
+      }
+    }
+    
+    await this.updateGlobal({
+      enabledPlugins: currentList.filter(id => id !== pluginId)
+    });
   }
 
   private notify() {

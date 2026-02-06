@@ -38,6 +38,7 @@ node_modules
 dist
 dist-ssr
 *.local
+.github
 release
 
 # Editor directories and files

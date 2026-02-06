@@ -1,4 +1,4 @@
-use tauri::{AppHandle, Manager, WebviewWindow};
+use tauri::{AppHandle, Manager, WebviewWindow, Emitter};
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::sync::Mutex;
@@ -355,4 +355,63 @@ pub async fn get_weread_book_progress(
         println!("[WeReadAPI] No book data in response");
         Ok(None)
     }
+}
+
+// ==================== 插件管理命令 ====================
+
+use crate::plugin_manager;
+
+/// 安装插件
+#[tauri::command]
+pub async fn install_plugin(app: AppHandle, path: String) -> Result<plugin_manager::PluginInfo, String> {
+    println!("[Plugin] Installing plugin from: {}", path);
+    let result = plugin_manager::install_plugin_from_file(&app, &path)?;
+    println!("[Plugin] Plugin installed: {} v{}", result.id, result.version);
+    
+    // 触发设置更新事件，通知前端
+    let _ = app.emit("plugins-updated", ());
+    
+    Ok(result)
+}
+
+/// 卸载插件
+#[tauri::command]
+pub async fn uninstall_plugin(app: AppHandle, plugin_id: String) -> Result<(), String> {
+    println!("[Plugin] Uninstalling plugin: {}", plugin_id);
+    plugin_manager::uninstall_plugin(&app, &plugin_id)?;
+    println!("[Plugin] Plugin uninstalled: {}", plugin_id);
+    
+    // 触发设置更新事件
+    let _ = app.emit("plugins-updated", ());
+    
+    Ok(())
+}
+
+/// 获取已安装的插件列表
+#[tauri::command]
+pub async fn get_installed_plugins(app: AppHandle) -> Result<Vec<plugin_manager::PluginInfo>, String> {
+    plugin_manager::get_installed_plugins(&app)
+}
+
+/// 获取插件配置
+#[tauri::command]
+pub async fn get_plugin_config(app: AppHandle, plugin_id: String) -> Result<serde_json::Value, String> {
+    plugin_manager::get_plugin_config(&app, &plugin_id)
+}
+
+/// 保存插件配置
+#[tauri::command]
+pub async fn save_plugin_config(app: AppHandle, plugin_id: String, config: serde_json::Value) -> Result<(), String> {
+    plugin_manager::save_plugin_config(&app, &plugin_id, config)?;
+    
+    // 触发设置更新事件
+    let _ = app.emit("settings-updated", ());
+    
+    Ok(())
+}
+
+/// 获取插件代码
+#[tauri::command]
+pub async fn get_plugin_code(app: AppHandle, plugin_id: String) -> Result<String, String> {
+    plugin_manager::get_plugin_code(&app, &plugin_id)
 }

@@ -118,6 +118,10 @@ function exposeDebugAPI(): void {
     getStats: () => registry.getStats(),
     getAllPlugins: () => registry.getAll(),
     reloadPlugin: (id: string) => loader.reloadPlugin(id),
+    // 插件安装/卸载 API
+    installPlugin: (id: string) => loader.installPlugin(id),
+    uninstallPlugin: (id: string) => loader.uninstallPlugin(id),
+    isPluginInstalled: (id: string) => loader.isPluginInstalled(id),
   };
   
   // 兼容旧的测试 API

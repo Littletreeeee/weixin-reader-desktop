@@ -478,3 +478,87 @@ export interface RegisteredPlugin {
   /** 加载时间 */
   loadedAt?: number;
 }
+
+// ==================== 插件配置系统 ====================
+
+/**
+ * 配置项字段类型
+ */
+export type ConfigFieldType = 'boolean' | 'string' | 'number' | 'select';
+
+/**
+ * 配置项字段定义
+ */
+export interface ConfigSchemaField {
+  /** 字段类型 */
+  type: ConfigFieldType;
+  /** 默认值 */
+  default: boolean | string | number;
+  /** 显示标签 */
+  label: string;
+  /** 条件显示（依赖其他字段为 true 时才显示） */
+  condition?: string;
+  /** 选项列表（type 为 select 时使用） */
+  options?: Array<{ value: string | number; label: string }>;
+  /** 描述文字 */
+  description?: string;
+}
+
+/**
+ * 配置 Schema
+ * 定义插件支持的用户可配置项
+ */
+export type ConfigSchema = Record<string, ConfigSchemaField>;
+
+/**
+ * 已安装的插件信息
+ * 存储在 settings.json 中
+ */
+export interface InstalledPluginInfo {
+  /** 插件 ID */
+  id: string;
+  /** 插件版本 */
+  version: string;
+  /** 安装时间戳 */
+  installedAt: number;
+  /** 是否启用 */
+  enabled: boolean;
+  /** 是否为内置插件 */
+  builtin?: boolean;
+}
+
+/**
+ * 扩展的插件清单（包含 configSchema）
+ */
+export interface ExtendedPluginManifest extends PluginManifest {
+  /** 用户可配置项的 Schema */
+  configSchema?: ConfigSchema;
+}
+
+/**
+ * 插件信息（用于前端展示）
+ */
+export interface PluginDisplayInfo {
+  /** 插件 ID */
+  id: string;
+  /** 插件名称 */
+  name: string;
+  /** 插件版本 */
+  version: string;
+  /** 插件描述 */
+  description?: string;
+  /** 插件作者 */
+  author?: string;
+  /** 插件主页 */
+  homepage?: string;
+  /** 网站首页 URL */
+  homeUrl?: string;
+  /** 是否为内置插件 */
+  builtin: boolean;
+  /** 是否启用 */
+  enabled: boolean;
+  /** 插件能力 */
+  capabilities: PluginCapabilities;
+  /** 配置 Schema */
+  configSchema?: ConfigSchema;
+}

@@ -9,7 +9,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License"></a>
   <img src="https://img.shields.io/github/downloads/dengcb/weixin-reader-desktop/total?style=flat-square&color=green" alt="Downloads">
   <img src="https://img.shields.io/badge/Tauri-v2-24C8D5?style=flat-square&logo=tauri&logoColor=white" alt="Tauri">
-  <img src="https://img.shields.io/badge/Platform-macOS-000000?style=flat-square&logo=apple&logoColor=white" alt="Platform">
+  <img src="https://img.shields.io/badge/Platform-macOS%20|%20Windows-000000?style=flat-square&logo=apple&logoColor=white" alt="Platform">
 </p>
 
 <p>
@@ -99,14 +99,14 @@ CPU 占用低
 </tr>
 </table>
 
-### 🔌 插件化架构 <sup>v0.8.0 新增</sup>
+### 🔌 插件化架构 <sup>v0.8.0 历史性更新</sup>
 
-> 全新插件系统，为未来扩展奠定基础
+> 全新可插拔式插件系统，支持第三方适配器与自定义脚本
 
 ```
-✓ 微信读书作为内置默认插件      ✓ 标准化插件接口
-✓ 支持第三方开发者扩展          ✓ 预留本地阅读能力
-✓ 命名空间隔离                  ✓ 热插拔支持
+✓ 支持 .atrd 插件包安装/卸载      ✓ 微信读书作为内置默认插件
+✓ 标准化插件开发接口             ✓ 预留本地阅读(EPUB/TXT)能力
+✓ 插件级命名空间隔离             ✓ 独立配置与存储系统
 ```
 
 ### 🔄 智能更新
@@ -151,6 +151,22 @@ bun install
 # 3. 构建发布版本
 bun release:arm    # Apple Silicon
 bun release:intel  # Intel
+```
+
+### 🪟 Windows 构建（在 macOS 上交叉编译）
+
+```bash
+# 1. 首次安装（仅需一次）
+brew install llvm
+cargo install cargo-xwin
+rustup target add x86_64-pc-windows-msvc
+
+# 2. 构建
+export PATH="/opt/homebrew/opt/llvm/bin:$PATH"
+bun run build
+cargo xwin build --release --target x86_64-pc-windows-msvc --manifest-path src-tauri/Cargo.toml
+
+# 产物: src-tauri/target/x86_64-pc-windows-msvc/release/weixin-reader.exe (~7MB)
 ```
 
 ---
@@ -267,7 +283,7 @@ bun test
 <tr>
 <td><b>测试</b></td>
 <td>Cargo + Bun Test</td>
-<td>双层测试覆盖（253+ 测试用例）</td>
+<td>双层测试覆盖（320+ 测试用例）</td>
 </tr>
 </table>
 
@@ -355,6 +371,10 @@ bun test
 <tr>
 <td><code>monitor.rs</code></td>
 <td>🖥️ 多显示器支持，事件驱动检测</td>
+</tr>
+<tr>
+<td><code>plugin_manager.rs</code></td>
+<td>🔌 插件生命周期管理（安装、卸载、代码注入）</td>
 </tr>
 <tr>
 <td><code>settings.rs</code></td>

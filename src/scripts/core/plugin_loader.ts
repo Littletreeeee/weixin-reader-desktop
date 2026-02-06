@@ -11,6 +11,7 @@
 import { log } from './logger';
 import { createPluginAPI } from './plugin_api';
 import { getPluginRegistry } from './plugin_registry';
+import { settingsStore } from './settings_store';
 import type { ReaderPlugin } from './plugin_types';
 
 export class PluginLoader {
@@ -93,6 +94,12 @@ export class PluginLoader {
     
     if (!registered) {
       log.error(`[PluginLoader] Plugin '${pluginId}' not found`);
+      return false;
+    }
+    
+    // 检查插件是否启用（用户可能已卸载/禁用该插件）
+    if (!settingsStore.isPluginEnabled(pluginId)) {
+      log.info(`[PluginLoader] Plugin '${pluginId}' is disabled by settings, skipping`);
       return false;
     }
     
@@ -232,6 +239,57 @@ export class PluginLoader {
       log.error(`[PluginLoader] Error invoking plugin method '${String(method)}'`, e);
       return null;
     }
+  }
+  
+  // ==================== 插件安装/卸载 API ====================
+  
+  /**
+   * 安装插件（启用 + 加载）
+   * @param pluginId 插件 ID
+   */
+  async installPlugin(pluginId: string): Promise<boolean> {
+    log.info(`[PluginLoader] Installing plugin: ${pluginId}`);
+    
+    // 1. 启用插件
+    await settingsStore.enablePlugin(pluginId);
+    
+    // 2. 加载插件
+    const loaded = await this.loadPlugin(pluginId);
+    
+    if (loaded) {
+      log.info(`[PluginLoader] Plugin installed: ${pluginId}`);
+    } else {
+      log.warn(`[PluginLoader] Plugin enabled but not loaded: ${pluginId} (may need page refresh)`);
+    }
+    
+    return loaded;
+  }
+  
+  /**
+   * 卸载插件（卸载运行时 + 禁用）
+   * @param pluginId 插件 ID
+   */
+  async uninstallPlugin(pluginId: string): Promise<boolean> {
+    log.info(`[PluginLoader] Uninstalling plugin: ${pluginId}`);
+    
+    // 1. 卸载运行时
+    const unloaded = await this.unloadPlugin(pluginId);
+    
+    // 2. 禁用插件（需要传入所有插件 ID 以处理 undefined 情况）
+    const registry = getPluginRegistry();
+    const allPluginIds = registry.getAll().map(r => r.plugin.manifest.id);
+    await settingsStore.disablePlugin(pluginId, allPluginIds);
+    
+    log.info(`[PluginLoader] Plugin uninstalled: ${pluginId}`);
+    return unloaded;
+  }
+  
+  /**
+   * 检查插件是否已安装（启用状态）
+   * @param pluginId 插件 ID
+   */
+  isPluginInstalled(pluginId: string): boolean {
+    return settingsStore.isPluginEnabled(pluginId);
   }
 }
 

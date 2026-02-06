@@ -2,7 +2,7 @@
   "$schema": "../gen/schemas/remote-schema.json",
   "identifier": "default",
   "description": "Capability for the main window with remote domain access",
-  "windows": ["main", "about", "update", "settings"],
+  "windows": ["main", "settings", "privacy", "terms"],
   "remote": {
     "urls": [
       "https://weread.qq.com/*",
@@ -13,6 +13,7 @@
   "permissions": [
     "core:default",
     "core:webview:default",
+    "core:webview:allow-create-webview-window",
     "opener:default",
     "store:default",
     "window-state:default",
@@ -21,7 +22,10 @@
     "core:event:default",
     "core:window:default",
     "core:window:allow-set-size",
+    "core:window:allow-create",
     "updater:default",
+    "dialog:default",
+    "fs:default",
     {
       "identifier": "http:default",
       "allow": [

@@ -144,7 +144,7 @@ pub fn get_display_names<R: Runtime>(handle: &AppHandle<R>) -> Vec<String> {
     if let Ok(monitors) = handle.available_monitors() {
         for (i, monitor) in monitors.iter().enumerate() {
             if let Some(name) = monitor.name() {
-                names.push(name);
+                names.push(name.to_string());
             } else {
                 names.push(format!("Monitor {}", i + 1));
             }

@@ -33,6 +33,9 @@ chrono = "0.4"
 log = "0.4"
 tauri-plugin-http = { version = "2.5.4", features = ["json"] }
 reqwest = { version = "0.12", features = ["json", "cookies"] }
+zip = "2.2"
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 cocoa = "0.26"

@@ -7,97 +7,726 @@
   <style>
     :root {
       color-scheme: light dark;
-      --bg-color: #f5f5f5;
-      --text-color: #000;
-      --border-color: #ccc;
-      --tip-color: #666;
+      --bg-color: #f8f9fa;
+      --sidebar-bg: #ffffff;
+      --content-bg: #ffffff;
+      --text-color: #202124;
+      --text-secondary: #5f6368;
+      --border-color: #e0e0e0;
+      --hover-bg: #f1f3f4;
+      --active-bg: #e8f0fe;
+      --active-color: #1a73e8;
+      --input-bg: #ffffff;
+      --card-bg: #ffffff;
+      --danger-color: #ea4335;
+      --success-color: #34a853;
+      --link-color: #1a73e8;
     }
 
     @media (prefers-color-scheme: dark) {
       :root {
-        --bg-color: #222;
-        --text-color: #eee;
-        --border-color: #555;
-        --tip-color: #aaa;
+        --bg-color: #202124;
+        --sidebar-bg: #292a2d;
+        --content-bg: #292a2d;
+        --text-color: #e8eaed;
+        --text-secondary: #9aa0a6;
+        --border-color: #3c4043;
+        --hover-bg: #3c4043;
+        --active-bg: #394457;
+        --active-color: #8ab4f8;
+        --input-bg: #3c4043;
+        --card-bg: #35363a;
+        --danger-color: #f28b82;
+        --success-color: #81c995;
+        --link-color: #8ab4f8;
       }
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
     }
 
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      padding: 20px;
       background-color: var(--bg-color);
       color: var(--text-color);
       user-select: none;
+      height: 100vh;
+      overflow: hidden;
     }
 
-    .form-group {
-      margin-bottom: 20px;
+    .container {
+      display: flex;
+      height: 100vh;
     }
 
-    label {
-      display: block;
-      margin-bottom: 8px;
+    /* 左侧导航栏 */
+    .sidebar {
+      width: 200px;
+      min-width: 200px;
+      background-color: var(--sidebar-bg);
+      border-right: 1px solid var(--border-color);
+      padding: 16px 0;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .sidebar-title {
+      font-size: 20px;
       font-weight: 500;
-      font-size: 14px;
+      padding: 8px 24px 16px;
+      color: var(--text-color);
     }
 
+    .nav-list {
+      flex: 1;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      padding: 10px 24px;
+      color: var(--text-secondary);
+      font-size: 14px;
+      cursor: pointer;
+      transition: background-color 0.15s;
+      border-radius: 0 24px 24px 0;
+      margin-right: 12px;
+    }
+
+    .nav-item:hover {
+      background-color: var(--hover-bg);
+    }
+
+    .nav-item.active {
+      background-color: var(--active-bg);
+      color: var(--active-color);
+      font-weight: 500;
+    }
+
+    .nav-item svg {
+      width: 20px;
+      height: 20px;
+      margin-right: 16px;
+      fill: currentColor;
+    }
+
+    .nav-spacer {
+      flex: 1;
+    }
+
+    /* 右侧内容区 */
+    .content {
+      flex: 1;
+      background-color: var(--content-bg);
+      padding: 32px 40px;
+      overflow-y: auto;
+    }
+
+    .section {
+      display: none;
+      max-width: 600px;
+    }
+
+    .section.active {
+      display: block;
+    }
+
+    .section-title {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      margin-bottom: 16px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    /* 设置项 */
+    .setting-item {
+      padding: 16px 0;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .setting-item:last-child {
+      border-bottom: none;
+    }
+
+    .setting-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .setting-info {
+      flex: 1;
+      margin-right: 16px;
+    }
+
+    .setting-label {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-color);
+      margin-bottom: 4px;
+    }
+
+    .setting-desc {
+      font-size: 12px;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+
+    /* 下拉选择框 */
     select {
-      width: 100%;
-      padding: 5px;
+      min-width: 120px;
+      padding: 8px 32px 8px 12px;
       border-radius: 4px;
       border: 1px solid var(--border-color);
-      background-color: var(--bg-color);
+      background-color: var(--input-bg);
       color: var(--text-color);
       font-size: 14px;
+      cursor: pointer;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%235f6368' d='M3 4.5L6 7.5L9 4.5'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 10px center;
     }
 
-    .checkbox-container {
-      display: grid;
-      grid-template-columns: auto 1fr;
-      column-gap: 8px;
+    select:focus {
+      outline: none;
+      border-color: var(--active-color);
     }
 
-    .checkbox-container input {
-      margin: 0;
-      margin-top: 3px;
-      /* 微调 checkbox 垂直位置 */
+    /* 开关样式 */
+    .toggle {
+      position: relative;
+      width: 36px;
+      height: 20px;
+      flex-shrink: 0;
     }
 
-    .checkbox-container label {
-      margin: 0;
-      font-weight: normal;
+    .toggle input {
+      opacity: 0;
+      width: 0;
+      height: 0;
     }
 
-    .checkbox-container .tip {
-      grid-column: 2;
-      margin: 5px 0 0 0;
+    .toggle-slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: var(--border-color);
+      border-radius: 20px;
+      transition: 0.2s;
+    }
+
+    .toggle-slider:before {
+      position: absolute;
+      content: "";
+      height: 16px;
+      width: 16px;
+      left: 2px;
+      bottom: 2px;
+      background-color: white;
+      border-radius: 50%;
+      transition: 0.2s;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    }
+
+    .toggle input:checked + .toggle-slider {
+      background-color: var(--active-color);
+    }
+
+    .toggle input:checked + .toggle-slider:before {
+      transform: translateX(16px);
+    }
+
+    /* 插件卡片 */
+    .plugin-card {
+      background-color: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 12px;
+    }
+
+    .plugin-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+
+    .plugin-info {
+      flex: 1;
+    }
+
+    .plugin-name {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-color);
+    }
+
+    .plugin-version {
       font-size: 12px;
-      color: var(--tip-color);
+      color: var(--text-secondary);
+      margin-left: 8px;
+    }
+
+    .plugin-desc {
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-top: 6px;
+      line-height: 1.5;
+    }
+
+    .plugin-btn {
+      padding: 6px 16px;
+      border-radius: 4px;
+      border: 1px solid var(--border-color);
+      background-color: transparent;
+      color: var(--text-color);
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+
+    .plugin-btn:hover {
+      background-color: var(--hover-bg);
+    }
+
+    .plugin-btn.uninstall {
+      border-color: var(--danger-color);
+      color: var(--danger-color);
+    }
+
+    .plugin-btn.uninstall:hover {
+      background-color: var(--danger-color);
+      color: white;
+    }
+
+    .plugin-btn.install {
+      border-color: var(--success-color);
+      color: var(--success-color);
+    }
+
+    .plugin-btn.install:hover {
+      background-color: var(--success-color);
+      color: white;
+    }
+
+    .plugin-tip {
+      font-size: 11px;
+      color: var(--text-secondary);
+      margin-top: 16px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border-color);
+    }
+
+    /* 关于页面 */
+    .about-header {
+      display: flex;
+      align-items: center;
+      padding: 20px;
+      background-color: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      margin-bottom: 16px;
+    }
+
+    .about-icon {
+      width: 64px;
+      height: 64px;
+      margin-right: 20px;
+      background-image: url('icon.png');
+      background-size: contain;
+      background-repeat: no-repeat;
+      background-position: center;
+      border-radius: 12px;
+    }
+
+    .about-app-info {
+      flex: 1;
+    }
+
+    .about-app-name {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--text-color);
+      margin-bottom: 4px;
+    }
+
+    .about-version-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .about-version {
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    .about-update-status {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--success-color);
+    }
+
+    .about-update-status svg {
+      width: 14px;
+      height: 14px;
+      fill: currentColor;
+    }
+
+    .about-update-status.checking {
+      color: var(--text-secondary);
+    }
+
+    .about-update-status.has-update {
+      color: var(--active-color);
+    }
+
+    .about-update-status.failed {
+      color: var(--danger-color);
+    }
+
+    .update-btn {
+      padding: 4px 12px;
+      border-radius: 4px;
+      border: 1px solid var(--active-color);
+      background-color: transparent;
+      color: var(--active-color);
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .update-btn:hover {
+      background-color: var(--active-color);
+      color: white;
+    }
+
+    .update-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* 链接列表 */
+    .link-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 14px 0;
+      border-bottom: 1px solid var(--border-color);
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+
+    .link-item:hover {
+      opacity: 0.8;
+    }
+
+    .link-item:last-child {
+      border-bottom: none;
+    }
+
+    .link-item-text {
+      font-size: 14px;
+      color: var(--text-color);
+    }
+
+    .link-item svg {
+      width: 16px;
+      height: 16px;
+      fill: var(--text-secondary);
+    }
+
+    /* 版权区域 */
+    .copyright-section {
+      margin-top: 24px;
+      padding: 20px;
+      background-color: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+    }
+
+    .copyright-title {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-color);
+      margin-bottom: 8px;
+    }
+
+    .copyright-text {
+      font-size: 12px;
+      color: var(--text-secondary);
+      line-height: 1.6;
+    }
+
+    .copyright-text a {
+      color: var(--link-color);
+      text-decoration: none;
+    }
+
+    .copyright-text a:hover {
+      text-decoration: underline;
+    }
+
+    .opensource-list {
+      margin-top: 12px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      line-height: 1.8;
+    }
+
+    .opensource-list a {
+      color: var(--link-color);
+      text-decoration: none;
+    }
+
+    .opensource-list a:hover {
+      text-decoration: underline;
+    }
+
+    /* 安装插件按钮 */
+    .install-plugin-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      margin-bottom: 16px;
+      border-radius: 4px;
+      border: 1px dashed var(--border-color);
+      background-color: transparent;
+      color: var(--text-secondary);
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .install-plugin-btn:hover {
+      border-color: var(--active-color);
+      color: var(--active-color);
+      background-color: var(--active-bg);
+    }
+
+    .install-plugin-btn svg {
+      width: 16px;
+      height: 16px;
+      fill: currentColor;
+    }
+
+    /* 插件按钮组 */
+    .plugin-actions {
+      display: flex;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    .plugin-btn.config {
+      border-color: var(--border-color);
+      color: var(--text-secondary);
+    }
+
+    .plugin-btn.config:hover {
+      background-color: var(--hover-bg);
+      color: var(--text-color);
+    }
+
+    /* 配置面板 */
+    .plugin-config {
+      display: none;
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border-color);
+    }
+
+    .plugin-config.expanded {
+      display: block;
+    }
+
+    .config-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+    }
+
+    .config-item-label {
+      font-size: 13px;
+      color: var(--text-color);
+    }
+
+    .config-item-desc {
+      font-size: 11px;
+      color: var(--text-secondary);
+      margin-top: 2px;
+    }
+
+    .config-divider {
+      height: 1px;
+      background-color: var(--border-color);
+      margin: 12px 0;
+    }
+
+    /* 内置插件标签 */
+    .plugin-badge {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 10px;
+      background-color: var(--active-bg);
+      color: var(--active-color);
+      margin-left: 8px;
     }
   </style>
 </head>
 
 <body>
-  <div class="form-group">
-    <label for="autoFlipStep">自动翻页时间间隔</label>
-    <select id="autoFlipStep">
-      <option value="15">15 秒</option>
-      <option value="30">30 秒</option>
-      <option value="45">45 秒</option>
-      <option value="60">1 分钟</option>
-    </select>
-  </div>
+  <div class="container">
+    <!-- 左侧导航 -->
+    <div class="sidebar">
+      <div class="sidebar-title">设置</div>
+      <div class="nav-list">
+        <div class="nav-item active" data-section="reading">
+          <svg viewBox="0 0 24 24"><path d="M21 5c-1.11-.35-2.33-.5-3.5-.5-1.95 0-4.05.4-5.5 1.5-1.45-1.1-3.55-1.5-5.5-1.5S2.45 4.9 1 6v14.65c0 .25.25.5.5.5.1 0 .15-.05.25-.05C3.1 20.45 5.05 20 6.5 20c1.95 0 4.05.4 5.5 1.5 1.35-.85 3.8-1.5 5.5-1.5 1.65 0 3.35.3 4.75 1.05.1.05.15.05.25.05.25 0 .5-.25.5-.5V6c-.6-.45-1.25-.75-2-1zm0 13.5c-1.1-.35-2.3-.5-3.5-.5-1.7 0-4.15.65-5.5 1.5V8c1.35-.85 3.8-1.5 5.5-1.5 1.2 0 2.4.15 3.5.5v11.5z"/></svg>
+          阅读设置
+        </div>
+        <div class="nav-item" data-section="plugins">
+          <svg viewBox="0 0 24 24"><path d="M20.5 11H19V7c0-1.1-.9-2-2-2h-4V3.5C13 2.12 11.88 1 10.5 1S8 2.12 8 3.5V5H4c-1.1 0-1.99.9-1.99 2v3.8H3.5c1.49 0 2.7 1.21 2.7 2.7s-1.21 2.7-2.7 2.7H2V20c0 1.1.9 2 2 2h3.8v-1.5c0-1.49 1.21-2.7 2.7-2.7 1.49 0 2.7 1.21 2.7 2.7V22H17c1.1 0 2-.9 2-2v-4h1.5c1.38 0 2.5-1.12 2.5-2.5S21.88 11 20.5 11z"/></svg>
+          插件管理
+        </div>
+      </div>
+      <div class="nav-spacer"></div>
+      <div class="nav-item" data-section="about">
+        <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+        关于
+      </div>
+    </div>
 
-  <div class="form-group checkbox-container">
-    <input type="checkbox" id="keepAwake">
-    <label for="keepAwake">后台不休，继续翻页</label>
-    <div class="tip">选中后，即使窗口最小化或被遮挡，也会保持自动翻页。</div>
-  </div>
+    <!-- 右侧内容 -->
+    <div class="content">
+      <!-- 阅读设置 -->
+      <div class="section active" id="section-reading">
+        <div class="section-title">自动翻页</div>
+        
+        <div class="setting-item">
+          <div class="setting-row">
+            <div class="setting-info">
+              <div class="setting-label">翻页时间间隔</div>
+              <div class="setting-desc">自动翻页时每页停留的时间</div>
+            </div>
+            <select id="autoFlipStep">
+              <option value="15">15 秒</option>
+              <option value="30">30 秒</option>
+              <option value="45">45 秒</option>
+              <option value="60">1 分钟</option>
+            </select>
+          </div>
+        </div>
 
-  <div class="form-group checkbox-container">
-    <input type="checkbox" id="lastPage">
-    <label for="lastPage">阅读不停，自动记录</label>
-    <div class="tip">选中后，会记录当前阅读进度，直接退出重进时畅读。</div>
+        <div class="setting-item">
+          <div class="setting-row">
+            <div class="setting-info">
+              <div class="setting-label">后台不休，继续翻页</div>
+              <div class="setting-desc">窗口最小化或被遮挡时，也保持自动翻页</div>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="keepAwake">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+
+        <div class="section-title" style="margin-top: 32px;">阅读体验</div>
+
+        <div class="setting-item">
+          <div class="setting-row">
+            <div class="setting-info">
+              <div class="setting-label">阅读不停，自动记录</div>
+              <div class="setting-desc">记录当前阅读进度，下次启动时自动恢复</div>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="lastPage">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- 插件管理 -->
+      <div class="section" id="section-plugins">
+        <div class="section-title">已安装的插件</div>
+        <button class="install-plugin-btn" id="installPluginBtn">
+          <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+          安装插件 (.atrd)
+        </button>
+        <div id="pluginList"></div>
+        <div class="plugin-tip">
+          内置插件无法卸载。外部插件卸载后将删除插件文件，配置数据保留。
+          刷新主窗口后更改生效。
+        </div>
+      </div>
+
+      <!-- 关于 -->
+      <div class="section" id="section-about">
+        <div class="section-title">关于艾特阅读</div>
+        
+        <!-- 应用信息卡片 -->
+        <div class="about-header">
+          <div class="about-icon"></div>
+          <div class="about-app-info">
+            <div class="about-app-name" id="appName">艾特阅读</div>
+            <div class="about-version-row">
+              <span class="about-version" id="appVersion">版本 0.8.0</span>
+              <span class="about-update-status" id="updateStatus">
+                <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                <span id="updateText">已是最新版本</span>
+              </span>
+            </div>
+          </div>
+          <button class="update-btn" id="updateBtn">检查更新</button>
+        </div>
+
+        <!-- 链接列表 -->
+        <div class="setting-item" style="padding-top: 8px;">
+          <div class="link-item" id="linkPrivacy">
+            <span class="link-item-text">隐私政策</span>
+            <svg viewBox="0 0 24 24"><path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/></svg>
+          </div>
+          <div class="link-item" id="linkTerms">
+            <span class="link-item-text">服务条款</span>
+            <svg viewBox="0 0 24 24"><path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/></svg>
+          </div>
+          <div class="link-item" id="linkGithub">
+            <span class="link-item-text">GitHub 项目主页</span>
+            <svg viewBox="0 0 24 24"><path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/></svg>
+          </div>
+        </div>
+
+        <!-- 版权信息 -->
+        <div class="copyright-section">
+          <div class="copyright-title">艾特阅读</div>
+          <div class="copyright-text">
+            版权所有 © 2026 dengcb. 保留所有权利。
+          </div>
+          <div class="opensource-list">
+            本应用基于以下开源项目构建：<br>
+            <a href="https://tauri.app" target="_blank">Tauri</a> - 跨平台桌面应用框架<br>
+            <a href="https://www.rust-lang.org" target="_blank">Rust</a> - 系统编程语言<br>
+            <a href="https://www.typescriptlang.org" target="_blank">TypeScript</a> - JavaScript 超集
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -110,118 +739,497 @@
       const invoke = tauri.core.invoke;
       const emit = tauri.event ? tauri.event.emit : (name) => console.warn("Emit not available:", name);
 
+      // ==================== 导航切换 ====================
+      const navItems = document.querySelectorAll('.nav-item');
+      const sections = document.querySelectorAll('.section');
+
+      function navigateToSection(sectionId) {
+        navItems.forEach(nav => nav.classList.remove('active'));
+        sections.forEach(sec => sec.classList.remove('active'));
+        
+        const targetNav = document.querySelector(`.nav-item[data-section="${sectionId}"]`);
+        const targetSection = document.getElementById(`section-${sectionId}`);
+        
+        if (targetNav) targetNav.classList.add('active');
+        if (targetSection) targetSection.classList.add('active');
+      }
+
+      // Export to window for menu.rs to call
+      window.navigateToSection = navigateToSection;
+
+      navItems.forEach(item => {
+        item.addEventListener('click', () => {
+          navigateToSection(item.dataset.section);
+        });
+      });
+
+      // Handle URL parameters
+      const urlParams = new URLSearchParams(window.location.search);
+      const tabParam = urlParams.get('tab');
+      if (tabParam) {
+        navigateToSection(tabParam);
+      }
+
+      // ==================== 设置加载和保存 ====================
       const autoFlipStepSelect = document.getElementById('autoFlipStep');
       const keepAwakeCheckbox = document.getElementById('keepAwake');
       const lastPageCheckbox = document.getElementById('lastPage');
 
-      // 1. Initial Load
+      // 加载设置
       invoke('get_settings').then((settings) => {
         settings = settings || {};
         const global = settings.global || {};
-        // Default to 'weread' site settings for now, or the first available site
         const siteId = 'weread';
         const sites = settings.sites || {};
         const siteSettings = sites[siteId] || {};
 
-        // Auto Flip Interval
+        // 自动翻页间隔
         if (siteSettings.autoFlip && siteSettings.autoFlip.interval) {
           autoFlipStepSelect.value = siteSettings.autoFlip.interval.toString();
         } else {
-           autoFlipStepSelect.value = "30";
+          autoFlipStepSelect.value = "30";
         }
 
-        // Keep Awake
+        // 后台翻页
         if (siteSettings.autoFlip && siteSettings.autoFlip.keepAwake !== undefined) {
           keepAwakeCheckbox.checked = siteSettings.autoFlip.keepAwake;
         } else {
-           keepAwakeCheckbox.checked = true;
+          keepAwakeCheckbox.checked = true;
         }
 
-        // Last Page (Global setting)
+        // 记录进度
         if (global.lastPage !== undefined) {
           lastPageCheckbox.checked = global.lastPage;
         } else {
-           lastPageCheckbox.checked = true;
+          lastPageCheckbox.checked = true;
         }
+
+        // 渲染插件列表
+        renderPluginList(settings);
       }).catch(e => console.error("Failed to load settings:", e));
 
-      // 2. Change Handlers (Fetch fresh settings before saving to avoid overwriting other fields like 'active')
-
+      // 保存自动翻页间隔
       autoFlipStepSelect.addEventListener('change', () => {
         const val = parseInt(autoFlipStepSelect.value, 10);
         invoke('get_settings').then((current) => {
-           current = current || {};
-           const siteId = 'weread';
-           const sites = current.sites || {};
-           const existingSite = sites[siteId] || {};
-           const existingAutoFlip = existingSite.autoFlip || { active: false, interval: 30, keepAwake: true };
+          current = current || {};
+          const siteId = 'weread';
+          const sites = current.sites || {};
+          const existingSite = sites[siteId] || {};
+          const existingAutoFlip = existingSite.autoFlip || { active: false, interval: 30, keepAwake: true };
 
-           const newAutoFlip = { ...existingAutoFlip, interval: val };
+          const update = {
+            sites: {
+              ...sites,
+              [siteId]: {
+                ...existingSite,
+                autoFlip: { ...existingAutoFlip, interval: val }
+              }
+            }
+          };
 
-           // Construct deep update for backend shallow merge
-           const update = {
-             sites: {
-               ...sites,
-               [siteId]: {
-                 ...existingSite,
-                 autoFlip: newAutoFlip
-               }
-             }
-           };
-
-           invoke('save_settings', { settings: update }).then(() => {
-             // Notify other windows (like main menu manager)
-             emit('settings-updated');
-           });
+          invoke('save_settings', { settings: update }).then(() => emit('settings-updated'));
         });
       });
 
+      // 保存后台翻页
       keepAwakeCheckbox.addEventListener('change', () => {
         const val = keepAwakeCheckbox.checked;
         invoke('get_settings').then((current) => {
-           current = current || {};
-           const siteId = 'weread';
-           const sites = current.sites || {};
-           const existingSite = sites[siteId] || {};
-           const existingAutoFlip = existingSite.autoFlip || { active: false, interval: 30, keepAwake: true };
+          current = current || {};
+          const siteId = 'weread';
+          const sites = current.sites || {};
+          const existingSite = sites[siteId] || {};
+          const existingAutoFlip = existingSite.autoFlip || { active: false, interval: 30, keepAwake: true };
 
-           const newAutoFlip = { ...existingAutoFlip, keepAwake: val };
+          const update = {
+            sites: {
+              ...sites,
+              [siteId]: {
+                ...existingSite,
+                autoFlip: { ...existingAutoFlip, keepAwake: val }
+              }
+            }
+          };
 
-           const update = {
-             sites: {
-               ...sites,
-               [siteId]: {
-                 ...existingSite,
-                 autoFlip: newAutoFlip
-               }
-             }
-           };
-
-           invoke('save_settings', { settings: update }).then(() => {
-             emit('settings-updated');
-           });
+          invoke('save_settings', { settings: update }).then(() => emit('settings-updated'));
         });
       });
 
+      // 保存记录进度
       lastPageCheckbox.addEventListener('change', () => {
         const val = lastPageCheckbox.checked;
         invoke('get_settings').then((current) => {
-           current = current || {};
-           const global = current.global || {};
-           
-           const update = {
-             global: {
-               ...global,
-               lastPage: val
-             }
-           };
+          current = current || {};
+          const global = current.global || {};
+          
+          const update = {
+            global: { ...global, lastPage: val }
+          };
 
-           invoke('save_settings', { settings: update }).then(() => {
-             emit('settings-updated');
-           });
+          invoke('save_settings', { settings: update }).then(() => emit('settings-updated'));
         });
       });
 
+      // ==================== 插件管理 ====================
+      const BUILTIN_PLUGINS = [
+        { 
+          id: 'weread', 
+          name: '微信读书', 
+          version: '1.0.0', 
+          description: '微信读书网站阅读增强，支持宽屏模式、自动翻页、隐藏工具栏等功能',
+          builtin: true,
+          enabled: true,
+          homeUrl: 'https://weread.qq.com/',
+          configSchema: {
+            wideMode: { type: 'boolean', default: false, label: '阅读变宽' },
+            hideToolbar: { type: 'boolean', default: false, label: '隐藏工具栏' },
+            hideNavbar: { type: 'boolean', default: false, label: '隐藏导航栏' },
+            autoFlip: { type: 'boolean', default: false, label: '自动翻页' },
+            hideCursor: { type: 'boolean', default: false, label: '隐藏光标' },
+            useSystemFont: { type: 'boolean', default: false, label: '使用系统字体' }
+          }
+        }
+      ];
+
+      let allPlugins = [...BUILTIN_PLUGINS];
+      let pluginConfigs = {};
+      let expandedPluginId = null;
+
+      // 加载外部插件列表
+      async function loadPluginList() {
+        try {
+          const externalPlugins = await invoke('get_installed_plugins');
+          allPlugins = [...BUILTIN_PLUGINS, ...externalPlugins.map(p => ({
+            ...p,
+            builtin: false,
+            enabled: true
+          }))];
+        } catch (e) {
+          console.error('Failed to load external plugins:', e);
+          allPlugins = [...BUILTIN_PLUGINS];
+        }
+      }
+
+      // 渲染插件列表
+      async function renderPluginList(settings) {
+        settings = settings || {};
+        const enabledPlugins = settings.global?.enabledPlugins;
+        pluginConfigs = settings.pluginConfigs || {};
+        const pluginList = document.getElementById('pluginList');
+        
+        await loadPluginList();
+        
+        pluginList.innerHTML = allPlugins.map(p => {
+          const isEnabled = enabledPlugins === undefined || enabledPlugins.includes(p.id);
+          const config = pluginConfigs[p.id] || {};
+          const isExpanded = expandedPluginId === p.id;
+          
+          // 生成配置面板
+          let configHtml = '';
+          if (p.configSchema) {
+            const items = Object.entries(p.configSchema).map(([key, def]) => {
+              if (def.condition && !config[def.condition]) return '';
+              const checked = config[key] ?? def.default ? 'checked' : '';
+              return `
+                <div class="config-item">
+                  <div>
+                    <div class="config-item-label">${def.label}</div>
+                    ${def.description ? `<div class="config-item-desc">${def.description}</div>` : ''}
+                  </div>
+                  <label class="toggle">
+                    <input type="checkbox" data-plugin="${p.id}" data-config-key="${key}" ${checked}>
+                    <span class="toggle-slider"></span>
+                  </label>
+                </div>
+              `;
+            }).filter(Boolean).join('');
+            
+            configHtml = `
+              <div class="plugin-config ${isExpanded ? 'expanded' : ''}" data-config-panel="${p.id}">
+                ${items}
+              </div>
+            `;
+          }
+          
+          return `
+            <div class="plugin-card">
+              <div class="plugin-header">
+                <div class="plugin-info">
+                  <span class="plugin-name">${p.name}</span>
+                  <span class="plugin-version">v${p.version}</span>
+                  ${p.builtin ? '<span class="plugin-badge">内置</span>' : ''}
+                  <div class="plugin-desc">${p.description || ''}</div>
+                </div>
+                <div class="plugin-actions">
+                  ${p.configSchema ? `
+                    <button class="plugin-btn config" data-plugin-id="${p.id}" data-action="config">
+                      配置${isExpanded ? ' ▲' : ' ▼'}
+                    </button>
+                  ` : ''}
+                  ${p.builtin ? '' : `
+                    <button class="plugin-btn uninstall" data-plugin-id="${p.id}" data-action="uninstall">
+                      卸载
+                    </button>
+                  `}
+                </div>
+              </div>
+              ${configHtml}
+            </div>
+          `;
+        }).join('');
+
+        // 绑定事件
+        pluginList.querySelectorAll('.plugin-btn').forEach(btn => {
+          btn.addEventListener('click', handlePluginAction);
+        });
+        
+        pluginList.querySelectorAll('.config-item input[type="checkbox"]').forEach(input => {
+          input.addEventListener('change', handleConfigChange);
+        });
+      }
+
+      async function handlePluginAction(e) {
+        const btn = e.target;
+        const pluginId = btn.dataset.pluginId;
+        const action = btn.dataset.action;
+        
+        if (action === 'config') {
+          // 展开/收起配置面板
+          expandedPluginId = expandedPluginId === pluginId ? null : pluginId;
+          invoke('get_settings').then(renderPluginList);
+          return;
+        }
+        
+        if (action === 'uninstall') {
+          try {
+            await invoke('uninstall_plugin', { pluginId });
+            expandedPluginId = null;
+            invoke('get_settings').then(renderPluginList);
+          } catch (e) {
+            console.error('Failed to uninstall plugin:', e);
+            alert('卸载失败: ' + e);
+          }
+          return;
+        }
+      }
+
+      async function handleConfigChange(e) {
+        const input = e.target;
+        const pluginId = input.dataset.plugin;
+        const key = input.dataset.configKey;
+        const value = input.checked;
+        
+        try {
+          const currentConfig = await invoke('get_plugin_config', { pluginId });
+          const newConfig = { ...currentConfig, [key]: value };
+          await invoke('save_plugin_config', { pluginId, config: newConfig });
+          pluginConfigs[pluginId] = newConfig;
+        } catch (e) {
+          console.error('Failed to save config:', e);
+          input.checked = !value; // 恢复
+        }
+      }
+
+      // 安装插件按钮
+      document.getElementById('installPluginBtn').addEventListener('click', async () => {
+        try {
+          const { open } = tauri.dialog || window.__TAURI__.dialog;
+          const file = await open({
+            multiple: false,
+            filters: [{ name: 'AT Reader 插件', extensions: ['atrd'] }]
+          });
+          
+          if (file) {
+            await invoke('install_plugin', { path: file });
+            invoke('get_settings').then(renderPluginList);
+          }
+        } catch (e) {
+          console.error('Failed to install plugin:', e);
+          if (e.toString().includes('dialog')) {
+            alert('文件选择对话框不可用');
+          } else {
+            alert('安装失败: ' + e);
+          }
+        }
+      });
+
+      // ==================== 关于页面 ====================
+      
+      // 加载应用信息
+      invoke('get_app_name').then(name => {
+        if (name) document.getElementById('appName').innerText = name;
+      }).catch(console.error);
+      
+      invoke('get_app_version').then(ver => {
+        if (ver) document.getElementById('appVersion').innerText = `版本 ${ver}`;
+      }).catch(console.error);
+
+      // 检查更新
+      const updateBtn = document.getElementById('updateBtn');
+      const updateStatus = document.getElementById('updateStatus');
+      const updateText = document.getElementById('updateText');
+
+      let hasUpdate = false;
+      let isDownloaded = false;
+      let newVersion = '';
+
+      async function checkUpdate() {
+        updateBtn.disabled = true;
+        updateBtn.textContent = '检查中...';
+        updateStatus.className = 'about-update-status checking';
+        updateText.textContent = '正在检查更新...';
+        
+        try {
+          // Check update using backend command
+          const [info, downloaded] = await Promise.all([
+            invoke('check_update_manual'),
+            invoke('is_update_downloaded')
+          ]);
+
+          hasUpdate = info.has_update;
+          isDownloaded = downloaded;
+          newVersion = info.version;
+
+          if (info.has_update) {
+            updateStatus.className = 'about-update-status has-update';
+            if (isDownloaded) {
+              updateText.textContent = `新版本 ${info.version} 已下载`;
+              updateBtn.textContent = '重启安装';
+            } else {
+              updateText.textContent = `发现新版本 ${info.version}`;
+              updateBtn.textContent = '立即更新';
+            }
+            updateBtn.disabled = false;
+          } else {
+            updateStatus.className = 'about-update-status';
+            updateStatus.innerHTML = '<svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg><span id="updateText">已是最新版本</span>';
+            updateBtn.textContent = '检查更新';
+            updateBtn.disabled = false;
+          }
+        } catch (e) {
+          console.error('Update check failed:', e);
+          updateStatus.className = 'about-update-status failed';
+          updateStatus.innerHTML = '<svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg><span id="updateText">检查更新失败</span>';
+          updateBtn.textContent = '重试';
+          updateBtn.disabled = false;
+        }
+      }
+
+      // Export to window for menu.rs to call
+      window.triggerUpdateCheck = checkUpdate;
+
+      updateBtn.addEventListener('click', async () => {
+        if (hasUpdate) {
+          if (isDownloaded) {
+            // Already downloaded, just restart
+            updateBtn.textContent = '正在重启...';
+            updateBtn.disabled = true;
+            updateText.textContent = '正在重启应用...';
+            try {
+              await invoke('install_update_now');
+            } catch (error) {
+              console.error("Restart failed:", error);
+              updateText.textContent = '重启失败: ' + error;
+              updateBtn.textContent = '重试';
+              updateBtn.disabled = false;
+            }
+          } else {
+            // Need to download and install
+            updateBtn.textContent = '下载中...';
+            updateBtn.disabled = true;
+            updateText.textContent = '正在下载更新...';
+            try {
+              await invoke('install_update_now');
+              updateBtn.textContent = '正在重启...';
+            } catch (error) {
+              console.error("Install failed:", error);
+              updateText.textContent = '更新失败: ' + error;
+              updateBtn.textContent = '重试';
+              updateBtn.disabled = false;
+            }
+          }
+        } else {
+          // Check for updates
+          await checkUpdate();
+        }
+      });
+
+      // Auto check on action=check_update param
+      const actionParam = urlParams.get('action');
+      if (actionParam === 'check_update') {
+        checkUpdate();
+      }
+
+      // 外部链接 - 使用 WebviewWindow 打开本地文档
+      const WebviewWindow = tauri.webviewWindow?.WebviewWindow;
+
+      document.getElementById('linkPrivacy').addEventListener('click', async () => {
+        if (!WebviewWindow) {
+          console.error('WebviewWindow not available');
+          return;
+        }
+        try {
+          const existing = await WebviewWindow.getByLabel('privacy');
+          if (existing) {
+            await existing.setFocus();
+          } else {
+            const privacyWin = new WebviewWindow('privacy', {
+              url: 'privacy.html',
+              title: '隐私政策',
+              width: 700,
+              height: 600,
+              center: true,
+              resizable: true
+            });
+            privacyWin.once('tauri://error', (e) => console.error('Window error:', e));
+          }
+        } catch (e) {
+          console.error('Failed to open privacy window:', e);
+        }
+      });
+      
+      document.getElementById('linkTerms').addEventListener('click', async () => {
+        if (!WebviewWindow) {
+          console.error('WebviewWindow not available');
+          return;
+        }
+        try {
+          const existing = await WebviewWindow.getByLabel('terms');
+          if (existing) {
+            await existing.setFocus();
+          } else {
+            const termsWin = new WebviewWindow('terms', {
+              url: 'terms.html',
+              title: '服务条款',
+              width: 700,
+              height: 600,
+              center: true,
+              resizable: true
+            });
+            termsWin.once('tauri://error', (e) => console.error('Window error:', e));
+          }
+        } catch (e) {
+          console.error('Failed to open terms window:', e);
+        }
+      });
+      
+      const opener = tauri.opener || window.__TAURI__.core;
+      document.getElementById('linkGithub').addEventListener('click', () => {
+        if (opener && opener.openUrl) {
+          opener.openUrl('https://github.com/dengcb/weixin-reader-desktop');
+        }
+      });
+
+      // 开源项目链接
+      document.querySelectorAll('.opensource-list a').forEach(a => {
+        a.addEventListener('click', (e) => {
+          e.preventDefault();
+          if (opener && opener.openUrl) {
+            opener.openUrl(a.href);
+          }
+        });
+      });
     })();
   </script>
 </body>
