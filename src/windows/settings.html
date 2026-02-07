@@ -320,6 +320,16 @@
       color: white;
     }
 
+    .plugin-btn.edit {
+      border-color: var(--active-color);
+      color: var(--active-color);
+    }
+
+    .plugin-btn.edit:hover {
+      background-color: var(--active-color);
+      color: white;
+    }
+
     .plugin-tip {
       font-size: 11px;
       color: var(--text-secondary);
@@ -497,12 +507,18 @@
     }
 
     /* 安装插件按钮 */
+    .plugin-buttons {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+
     .install-plugin-btn {
       display: inline-flex;
       align-items: center;
       gap: 8px;
       padding: 8px 16px;
-      margin-bottom: 16px;
       border-radius: 4px;
       border: 1px dashed var(--border-color);
       background-color: transparent;
@@ -665,14 +681,19 @@
       <!-- 插件管理 -->
       <div class="section" id="section-plugins">
         <div class="section-title">已安装的插件</div>
-        <button class="install-plugin-btn" id="installPluginBtn">
-          <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-          安装插件 (.atrd)
-        </button>
+        <div class="plugin-buttons">
+          <button class="install-plugin-btn" id="installPluginBtn">
+            <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+            安装插件 (.atrd)
+          </button>
+          <button class="install-plugin-btn" id="createPluginBtn" style="background-color: var(--active-color); color: white; border-color: var(--active-color);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+            新建插件
+          </button>
+        </div>
         <div id="pluginList"></div>
         <div class="plugin-tip">
-          内置插件无法卸载。外部插件卸载后将删除插件文件，配置数据保留。
-          刷新主窗口后更改生效。
+          内置插件可以卸载（禁用），编译后可重新安装。外部插件可以编辑和卸载。
         </div>
       </div>
 
@@ -706,10 +727,6 @@
             <span class="link-item-text">服务条款</span>
             <svg viewBox="0 0 24 24"><path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/></svg>
           </div>
-          <div class="link-item" id="linkGithub">
-            <span class="link-item-text">GitHub 项目主页</span>
-            <svg viewBox="0 0 24 24"><path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/></svg>
-          </div>
         </div>
 
         <!-- 版权信息 -->
@@ -723,6 +740,9 @@
             <a href="https://tauri.app" target="_blank">Tauri</a> - 跨平台桌面应用框架<br>
             <a href="https://www.rust-lang.org" target="_blank">Rust</a> - 系统编程语言<br>
             <a href="https://www.typescriptlang.org" target="_blank">TypeScript</a> - JavaScript 超集
+          </div>
+          <div class="opensource-list">
+            本应用已开源于 <a href="https://github.com/dengcb/weixin-reader-desktop" target="_blank">GitHub</a>
           </div>
         </div>
       </div>
@@ -882,12 +902,12 @@
           enabled: true,
           homeUrl: 'https://weread.qq.com/',
           configSchema: {
-            wideMode: { type: 'boolean', default: false, label: '阅读变宽' },
-            hideToolbar: { type: 'boolean', default: false, label: '隐藏工具栏' },
-            hideNavbar: { type: 'boolean', default: false, label: '隐藏导航栏' },
-            autoFlip: { type: 'boolean', default: false, label: '自动翻页' },
-            hideCursor: { type: 'boolean', default: false, label: '隐藏光标' },
-            useSystemFont: { type: 'boolean', default: false, label: '使用系统字体' }
+            wideMode: { type: 'boolean', label: '阅读变宽', settingsKey: 'sites.weread.readerWide' },
+            hideToolbar: { type: 'boolean', label: '隐藏工具栏', settingsKey: 'sites.weread.hideToolbar' },
+            hideNavbar: { type: 'boolean', label: '隐藏导航栏', settingsKey: 'sites.weread.hideNavbar' },
+            autoFlip: { type: 'boolean', label: '自动翻页', settingsKey: 'sites.weread.autoFlip.active' },
+            hideCursor: { type: 'boolean', label: '隐藏光标', settingsKey: 'global.hideCursor' },
+            useSystemFont: { type: 'boolean', label: '使用系统字体', settingsKey: 'sites.weread.useSystemFont' }
           }
         }
       ];
@@ -918,6 +938,17 @@
         pluginConfigs = settings.pluginConfigs || {};
         const pluginList = document.getElementById('pluginList');
         
+        // 从嵌套路径读取值的辅助函数
+        const getSettingValue = (path) => {
+          const parts = path.split('.');
+          let value = settings;
+          for (const part of parts) {
+            if (value === undefined || value === null) return undefined;
+            value = value[part];
+          }
+          return value;
+        };
+        
         await loadPluginList();
         
         pluginList.innerHTML = allPlugins.map(p => {
@@ -930,7 +961,13 @@
           if (p.configSchema) {
             const items = Object.entries(p.configSchema).map(([key, def]) => {
               if (def.condition && !config[def.condition]) return '';
-              const checked = config[key] ?? def.default ? 'checked' : '';
+              // 优先从应用设置读取，其次从插件配置读取
+              let checked = '';
+              if (def.settingsKey) {
+                checked = getSettingValue(def.settingsKey) ? 'checked' : '';
+              } else {
+                checked = config[key] ?? def.default ? 'checked' : '';
+              }
               return `
                 <div class="config-item">
                   <div>
@@ -938,7 +975,7 @@
                     ${def.description ? `<div class="config-item-desc">${def.description}</div>` : ''}
                   </div>
                   <label class="toggle">
-                    <input type="checkbox" data-plugin="${p.id}" data-config-key="${key}" ${checked}>
+                    <input type="checkbox" data-plugin="${p.id}" data-config-key="${key}" data-settings-key="${def.settingsKey || ''}" ${checked}>
                     <span class="toggle-slider"></span>
                   </label>
                 </div>
@@ -967,11 +1004,14 @@
                       配置${isExpanded ? ' ▲' : ' ▼'}
                     </button>
                   ` : ''}
-                  ${p.builtin ? '' : `
-                    <button class="plugin-btn uninstall" data-plugin-id="${p.id}" data-action="uninstall">
-                      卸载
+                  ${!p.builtin ? `
+                    <button class="plugin-btn edit" data-plugin-id="${p.id}" data-action="edit">
+                      编辑
                     </button>
-                  `}
+                  ` : ''}
+                  <button class="plugin-btn uninstall" data-plugin-id="${p.id}" data-action="uninstall" data-builtin="${p.builtin}">
+                    卸载
+                  </button>
                 </div>
               </div>
               ${configHtml}
@@ -1001,9 +1041,50 @@
           return;
         }
         
+        if (action === 'edit') {
+          // 打开编辑器窗口
+          openPluginEditor('edit', pluginId);
+          return;
+        }
+        
         if (action === 'uninstall') {
+          const isBuiltin = btn.dataset.builtin === 'true';
+          const pluginName = allPlugins.find(p => p.id === pluginId)?.name || pluginId;
+          
+          if (!confirm(`确定要卸载插件"${pluginName}"吗？\n\n${isBuiltin ? '内置插件卸载后可重新从 .atrd 文件安装。' : '外部插件卸载后将删除插件文件。'}`)) {
+            return;
+          }
+          
           try {
-            await invoke('uninstall_plugin', { pluginId });
+            // 获取当前所有插件 ID 列表（用于 disablePlugin）
+            const allPluginIds = allPlugins.map(p => p.id);
+            
+            if (!isBuiltin) {
+              // 外部插件：删除文件
+              await invoke('uninstall_plugin', { pluginId });
+            }
+            
+            // 禁用插件（从 enabledPlugins 移除）
+            const settings = await invoke('get_settings');
+            let enabledPlugins = settings?.global?.enabledPlugins;
+            
+            // 如果 undefined（全部启用），初始化为除当前插件外的所有插件
+            if (enabledPlugins === undefined) {
+              enabledPlugins = allPluginIds.filter(id => id !== pluginId);
+            } else {
+              enabledPlugins = enabledPlugins.filter(id => id !== pluginId);
+            }
+            
+            // 保存更新后的设置
+            const update = {
+              global: { ...settings?.global, enabledPlugins }
+            };
+            await invoke('save_settings', { settings: update });
+            
+            // 触发事件通知主窗口
+            emit('settings-updated');
+            emit('plugins-updated');
+            
             expandedPluginId = null;
             invoke('get_settings').then(renderPluginList);
           } catch (e) {
@@ -1018,13 +1099,37 @@
         const input = e.target;
         const pluginId = input.dataset.plugin;
         const key = input.dataset.configKey;
+        const settingsKey = input.dataset.settingsKey;
         const value = input.checked;
         
         try {
-          const currentConfig = await invoke('get_plugin_config', { pluginId });
-          const newConfig = { ...currentConfig, [key]: value };
-          await invoke('save_plugin_config', { pluginId, config: newConfig });
-          pluginConfigs[pluginId] = newConfig;
+          // 如果有 settingsKey，更新应用设置
+          if (settingsKey) {
+            const current = await invoke('get_settings') || {};
+            const parts = settingsKey.split('.');
+            
+            // 构建更新对象
+            const update = {};
+            let target = update;
+            let source = current;
+            
+            for (let i = 0; i < parts.length - 1; i++) {
+              const part = parts[i];
+              source = source[part] || {};
+              target[part] = { ...source };
+              target = target[part];
+            }
+            target[parts[parts.length - 1]] = value;
+            
+            await invoke('save_settings', { settings: update });
+            emit('settings-updated');
+          } else {
+            // 普通插件配置
+            const currentConfig = await invoke('get_plugin_config', { pluginId });
+            const newConfig = { ...currentConfig, [key]: value };
+            await invoke('save_plugin_config', { pluginId, config: newConfig });
+            pluginConfigs[pluginId] = newConfig;
+          }
         } catch (e) {
           console.error('Failed to save config:', e);
           input.checked = !value; // 恢复
@@ -1041,7 +1146,25 @@
           });
           
           if (file) {
-            await invoke('install_plugin', { path: file });
+            const pluginInfo = await invoke('install_plugin', { path: file });
+            
+            // 启用新安装的插件
+            const settings = await invoke('get_settings');
+            let enabledPlugins = settings?.global?.enabledPlugins;
+            
+            // 如果有明确的列表，添加新插件
+            if (enabledPlugins !== undefined && !enabledPlugins.includes(pluginInfo.id)) {
+              enabledPlugins = [...enabledPlugins, pluginInfo.id];
+              const update = {
+                global: { ...settings?.global, enabledPlugins }
+              };
+              await invoke('save_settings', { settings: update });
+            }
+            
+            // 触发事件通知主窗口
+            emit('settings-updated');
+            emit('plugins-updated');
+            
             invoke('get_settings').then(renderPluginList);
           }
         } catch (e) {
@@ -1053,6 +1176,67 @@
           }
         }
       });
+
+      // 新建插件按钮
+      document.getElementById('createPluginBtn').addEventListener('click', () => {
+        openPluginEditor('create');
+      });
+
+      // 打开插件编辑器窗口
+      async function openPluginEditor(mode, pluginId = null) {
+        try {
+          const WebviewWindow = tauri.webviewWindow?.WebviewWindow;
+          if (!WebviewWindow) {
+            throw new Error('WebviewWindow API 不可用');
+          }
+          
+          // 检查窗口是否已存在
+          const existingWindow = await WebviewWindow.getByLabel('plugin-editor');
+          if (existingWindow) {
+            await existingWindow.setFocus();
+            // 发送初始化数据
+            if (mode === 'edit' && pluginId) {
+              const pluginData = await invoke('load_plugin_for_edit', { pluginId });
+              await existingWindow.emit('editor-init', pluginData);
+            }
+            return;
+          }
+          
+          // 构建 URL 参数
+          let url = 'editor.html';
+          if (mode === 'edit' && pluginId) {
+            url += `?mode=edit&pluginId=${encodeURIComponent(pluginId)}`;
+          }
+          
+          // 创建新窗口
+          const editorWindow = new WebviewWindow('plugin-editor', {
+            url,
+            title: mode === 'create' ? '新建插件' : '编辑插件',
+            width: 1100,
+            height: 750,
+            minWidth: 900,
+            minHeight: 600,
+            center: true,
+            resizable: true
+          });
+          
+          // 等待窗口创建完成后发送数据
+          editorWindow.once('tauri://created', async () => {
+            if (mode === 'edit' && pluginId) {
+              try {
+                const pluginData = await invoke('load_plugin_for_edit', { pluginId });
+                await editorWindow.emit('editor-init', pluginData);
+              } catch (e) {
+                console.error('Failed to load plugin data:', e);
+              }
+            }
+          });
+          
+        } catch (e) {
+          console.error('Failed to open editor:', e);
+          alert('无法打开编辑器：' + e);
+        }
+      }
 
       // ==================== 关于页面 ====================
       

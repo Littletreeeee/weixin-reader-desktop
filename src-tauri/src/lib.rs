@@ -60,8 +60,10 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_http::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_store::Builder::default().build())
-        .plugin(tauri_plugin_window_state::Builder::default().with_denylist(&["about", "update", "settings"]).build())
+        .plugin(tauri_plugin_window_state::Builder::default().with_denylist(&["about", "update", "settings", "plugin-editor"]).build())
         .plugin(tauri_plugin_log::Builder::new().targets([
             tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Stdout),
             tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Webview),
@@ -291,6 +293,10 @@ pub fn run() {
             commands::get_plugin_config,
             commands::save_plugin_config,
             commands::get_plugin_code,
+            commands::load_plugin_for_edit,
+            commands::save_plugin,
+            commands::save_plugin_dialog,
+            commands::install_plugin_from_editor,
             update::check_update_manual,
             update::install_update_now,
             update::is_update_downloaded

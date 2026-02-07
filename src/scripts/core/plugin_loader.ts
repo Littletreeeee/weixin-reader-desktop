@@ -56,10 +56,18 @@ export class PluginLoader {
     
     const registry = getPluginRegistry();
     
-    // 1. 创建并注册所有内置插件
+    // 1. 创建并注册所有内置插件（检查是否启用）
     for (const factory of this.builtinFactories) {
       try {
         const plugin = factory();
+        const pluginId = plugin.manifest.id;
+        
+        // 检查是否启用
+        if (!settingsStore.isPluginEnabled(pluginId)) {
+          log.info(`[PluginLoader] Skipping disabled builtin plugin: ${pluginId}`);
+          continue;
+        }
+        
         registry.register(plugin);
       } catch (e) {
         log.error('[PluginLoader] Failed to create builtin plugin', e);
@@ -290,6 +298,77 @@ export class PluginLoader {
    */
   isPluginInstalled(pluginId: string): boolean {
     return settingsStore.isPluginEnabled(pluginId);
+  }
+  
+  // ==================== 热重载 API ====================
+  
+  /**
+   * 热重载插件系统
+   * 卸载所有已加载插件，重新注册启用的插件，并加载匹配当前页面的插件
+   */
+  async hotReload(): Promise<void> {
+    log.info('[PluginLoader] Hot reloading plugin system...');
+    
+    const registry = getPluginRegistry();
+    
+    // 1. 卸载所有已加载的插件
+    const allRegistered = registry.getAll();
+    for (const registered of allRegistered) {
+      if (registered.state === 'loaded') {
+        try {
+          registered.plugin.onUnload();
+          log.info(`[PluginLoader] Hot unloaded: ${registered.plugin.manifest.id}`);
+        } catch (e) {
+          log.error(`[PluginLoader] Failed to unload plugin during hot reload`, e);
+        }
+      }
+    }
+    
+    // 2. 清空注册表
+    registry.clear();
+    
+    // 3. 重新注册启用的内置插件
+    for (const factory of this.builtinFactories) {
+      try {
+        const plugin = factory();
+        const pluginId = plugin.manifest.id;
+        
+        if (!settingsStore.isPluginEnabled(pluginId)) {
+          log.info(`[PluginLoader] Skipping disabled plugin during hot reload: ${pluginId}`);
+          continue;
+        }
+        
+        registry.register(plugin);
+      } catch (e) {
+        log.error('[PluginLoader] Failed to create plugin during hot reload', e);
+      }
+    }
+    
+    // 4. 自动激活匹配当前页面的插件
+    const activePlugin = registry.getActivePlugin();
+    
+    if (activePlugin) {
+      await this.loadPlugin(activePlugin.plugin.manifest.id);
+    } else {
+      log.warn('[PluginLoader] No plugin matched current page after hot reload');
+    }
+    
+    const stats = registry.getStats();
+    log.info(`[PluginLoader] Hot reload complete. Total: ${stats.total}, Loaded: ${stats.loaded}`);
+  }
+  
+  /**
+   * 获取所有内置插件 ID（用于初始化 enabledPlugins）
+   */
+  getAllBuiltinPluginIds(): string[] {
+    return this.builtinFactories.map(factory => {
+      try {
+        const plugin = factory();
+        return plugin.manifest.id;
+      } catch {
+        return null;
+      }
+    }).filter((id): id is string => id !== null);
   }
 }
 

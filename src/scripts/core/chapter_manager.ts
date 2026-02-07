@@ -31,6 +31,9 @@ class ChapterManager {
   // 章节数据
   private chapters: ChapterData[] = [];
 
+  // 初始化失败标记（防止重复尝试）
+  private initFailed: boolean = false;
+
   private constructor() {}
 
   static getInstance(): ChapterManager {
@@ -51,14 +54,26 @@ class ChapterManager {
       return true;
     }
 
-    // 1. 缓存 bookId
+    // 如果之前初始化失败且 bookId 相同，跳过重复尝试
+    if (this.bookId === bookId && this.initFailed) {
+      return false;
+    }
+
+    // 检查登录状态，未登录时静默返回
+    if (!this.isLoggedIn()) {
+      return false;
+    }
+
+    // 1. 缓存 bookId，重置失败标记
     this.bookId = bookId;
+    this.initFailed = false;
     log.info(`[ChapterManager] 缓存 bookId: ${bookId}`);
 
     // 2. 从页面获取数字型 ID（用于 API 调用）
     const numericId = this.readNumericBookId();
     if (!numericId) {
-      log.error('[ChapterManager] 无法获取数字型 ID');
+      log.warn('[ChapterManager] 无法获取数字型 ID，可能页面未完全加载');
+      this.initFailed = true;
       return false;
     }
 
@@ -75,21 +90,23 @@ class ChapterManager {
       });
 
       if (!response.ok) {
-        log.error(`[ChapterManager] API 失败: ${response.status}`);
+        log.warn(`[ChapterManager] API 失败: ${response.status}`);
+        this.initFailed = true;
         return false;
       }
 
       const result = await response.json();
 
-      // 检查 API 错误（可能未登录）
+      // 检查 API 错误（可能未登录或权限问题）
       if (result.errCode && result.errCode !== 0) {
-        log.warn(`[ChapterManager] API 错误: ${result.errCode}`);
+        // 静默处理常见错误码（-2010: 未登录, -2012: 权限不足）
+        this.initFailed = true;
         return false;
       }
 
       const bookData = result?.data?.[0];
       if (!bookData?.updated?.length) {
-        log.warn('[ChapterManager] API 返回空数据');
+        this.initFailed = true;
         return false;
       }
 

@@ -11,6 +11,7 @@ import { settingsStore } from './core/settings_store';
 import { getPluginLoader } from './core/plugin_loader';
 import { getPluginRegistry } from './core/plugin_registry';
 import { builtinPluginFactories } from '../plugins/builtin';
+import { listen } from '@tauri-apps/api/event';
 
 // 旧适配器系统（向后兼容）
 import { getSiteRegistry } from './core/site_registry';
@@ -122,6 +123,8 @@ function exposeDebugAPI(): void {
     installPlugin: (id: string) => loader.installPlugin(id),
     uninstallPlugin: (id: string) => loader.uninstallPlugin(id),
     isPluginInstalled: (id: string) => loader.isPluginInstalled(id),
+    // 热重载 API
+    hotReload: () => loader.hotReload(),
   };
   
   // 兼容旧的测试 API
@@ -134,6 +137,33 @@ function exposeDebugAPI(): void {
   }
   
   log.info('[Inject] Debug API exposed: window.pluginSystem');
+}
+
+/**
+ * 设置热重载监听器
+ * 监听 plugins-updated 事件，自动刷新设置并重新加载插件系统
+ */
+async function setupHotReloadListener(): Promise<void> {
+  const loader = getPluginLoader();
+  
+  await listen('plugins-updated', async () => {
+    log.info('[Inject] Received plugins-updated event, hot reloading...');
+    
+    try {
+      // 1. 刷新设置（从后端重新加载）
+      await settingsStore.refresh();
+      log.info('[Inject] Settings refreshed');
+      
+      // 2. 热重载插件系统
+      await loader.hotReload();
+      log.info('[Inject] Plugin system hot reloaded successfully');
+      
+    } catch (e) {
+      log.error('[Inject] Hot reload failed', e);
+    }
+  });
+  
+  log.info('[Inject] Hot reload listener registered');
 }
 
 /**
@@ -169,6 +199,9 @@ async function main(): Promise<void> {
     
     // 5. 暴露调试 API
     exposeDebugAPI();
+    
+    // 6. 设置热重载监听器（插件安装/卸载后自动刷新）
+    await setupHotReloadListener();
     
     log.info('[Inject] Initialization complete!');
     log.info('[Inject] ==========================================');

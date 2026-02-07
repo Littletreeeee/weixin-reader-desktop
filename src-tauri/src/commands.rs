@@ -415,3 +415,199 @@ pub async fn save_plugin_config(app: AppHandle, plugin_id: String, config: serde
 pub async fn get_plugin_code(app: AppHandle, plugin_id: String) -> Result<String, String> {
     plugin_manager::get_plugin_code(&app, &plugin_id)
 }
+
+// ==================== 插件编辑器命令 ====================
+
+/// 插件文件数据
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PluginFile {
+    pub name: String,
+    pub content: String,
+}
+
+/// 编辑器插件数据
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PluginEditorData {
+    pub mode: String,
+    pub plugin_id: Option<String>,
+    pub plugin_path: Option<String>,
+    pub is_builtin: bool,
+    pub manifest: serde_json::Value,
+    pub files: Vec<PluginFile>,
+}
+
+/// 加载插件数据用于编辑
+#[tauri::command]
+pub async fn load_plugin_for_edit(app: AppHandle, plugin_id: String) -> Result<PluginEditorData, String> {
+    println!("[PluginEditor] Loading plugin for edit: {}", plugin_id);
+    
+    // 获取插件目录路径
+    let plugins_dir = app.path().app_config_dir()
+        .map_err(|e| e.to_string())?
+        .join("plugins")
+        .join(&plugin_id);
+    
+    if !plugins_dir.exists() {
+        return Err(format!("Plugin not found: {}", plugin_id));
+    }
+    
+    // 读取 manifest.json
+    let manifest_path = plugins_dir.join("manifest.json");
+    let manifest_content = std::fs::read_to_string(&manifest_path)
+        .map_err(|e| format!("Failed to read manifest: {}", e))?;
+    let manifest: serde_json::Value = serde_json::from_str(&manifest_content)
+        .map_err(|e| format!("Failed to parse manifest: {}", e))?;
+    
+    // 读取所有文件
+    let mut files = Vec::new();
+    
+    // 读取主代码文件
+    let code_files = ["index.ts", "index.js", "plugin.ts", "plugin.js"];
+    for code_file in code_files {
+        let code_path = plugins_dir.join(code_file);
+        if code_path.exists() {
+            let content = std::fs::read_to_string(&code_path)
+                .unwrap_or_default();
+            files.push(PluginFile {
+                name: code_file.to_string(),
+                content,
+            });
+            break;
+        }
+    }
+    
+    // 读取样式文件
+    let styles_dir = plugins_dir.join("styles");
+    if styles_dir.exists() {
+        if let Ok(entries) = std::fs::read_dir(&styles_dir) {
+            for entry in entries.flatten() {
+                if let Some(name) = entry.file_name().to_str() {
+                    if name.ends_with(".css") {
+                        let content = std::fs::read_to_string(entry.path())
+                            .unwrap_or_default();
+                        files.push(PluginFile {
+                            name: name.to_string(),
+                            content,
+                        });
+                    }
+                }
+            }
+        }
+    }
+    
+    Ok(PluginEditorData {
+        mode: "edit".to_string(),
+        plugin_id: Some(plugin_id),
+        plugin_path: Some(plugins_dir.to_string_lossy().to_string()),
+        is_builtin: false,
+        manifest,
+        files,
+    })
+}
+
+/// 保存插件到指定路径
+#[tauri::command]
+pub async fn save_plugin(
+    path: String,
+    manifest: serde_json::Value,
+    files: Vec<PluginFile>,
+) -> Result<(), String> {
+    println!("[PluginEditor] Saving plugin to: {}", path);
+    
+    let plugin_dir = std::path::Path::new(&path);
+    
+    // 创建插件目录
+    std::fs::create_dir_all(plugin_dir)
+        .map_err(|e| format!("Failed to create plugin directory: {}", e))?;
+    
+    // 保存 manifest.json
+    let manifest_path = plugin_dir.join("manifest.json");
+    let manifest_str = serde_json::to_string_pretty(&manifest)
+        .map_err(|e| format!("Failed to serialize manifest: {}", e))?;
+    std::fs::write(&manifest_path, manifest_str)
+        .map_err(|e| format!("Failed to write manifest: {}", e))?;
+    
+    // 保存其他文件
+    for file in files {
+        let file_path = if file.name.ends_with(".css") {
+            // CSS 文件放在 styles 目录
+            let styles_dir = plugin_dir.join("styles");
+            std::fs::create_dir_all(&styles_dir)
+                .map_err(|e| format!("Failed to create styles directory: {}", e))?;
+            styles_dir.join(&file.name)
+        } else {
+            plugin_dir.join(&file.name)
+        };
+        
+        std::fs::write(&file_path, &file.content)
+            .map_err(|e| format!("Failed to write file {}: {}", file.name, e))?;
+    }
+    
+    println!("[PluginEditor] Plugin saved successfully");
+    Ok(())
+}
+
+/// 打开保存对话框
+#[tauri::command]
+pub async fn save_plugin_dialog(app: AppHandle, default_name: String) -> Result<Option<String>, String> {
+    use tauri_plugin_dialog::DialogExt;
+    
+    let result = app.dialog()
+        .file()
+        .set_file_name(&format!("{}-plugin", default_name))
+        .set_title("保存插件")
+        .blocking_save_file();
+    
+    match result {
+        Some(path) => Ok(Some(path.to_string())),
+        None => Ok(None),
+    }
+}
+
+/// 从编辑器安装插件（直接保存到应用插件目录）
+#[tauri::command]
+pub async fn install_plugin_from_editor(
+    app: AppHandle,
+    manifest: serde_json::Value,
+    files: Vec<PluginFile>,
+) -> Result<plugin_manager::PluginInfo, String> {
+    println!("[PluginEditor] Installing plugin from editor");
+    
+    // 获取插件 ID
+    let plugin_id = manifest.get("id")
+        .and_then(|v| v.as_str())
+        .ok_or("Missing plugin id in manifest")?;
+    
+    // 获取应用插件目录
+    let plugins_dir = app.path().app_config_dir()
+        .map_err(|e| e.to_string())?
+        .join("plugins")
+        .join(plugin_id);
+    
+    // 保存到插件目录
+    save_plugin(plugins_dir.to_string_lossy().to_string(), manifest.clone(), files).await?;
+    
+    // 返回插件信息
+    let info = plugin_manager::PluginInfo {
+        id: plugin_id.to_string(),
+        name: manifest.get("name").and_then(|v| v.as_str()).unwrap_or(plugin_id).to_string(),
+        version: manifest.get("version").and_then(|v| v.as_str()).unwrap_or("1.0.0").to_string(),
+        description: manifest.get("description").and_then(|v| v.as_str()).map(|s| s.to_string()),
+        author: manifest.get("author").and_then(|v| v.as_str()).map(|s| s.to_string()),
+        homepage: manifest.get("homepage").and_then(|v| v.as_str()).map(|s| s.to_string()),
+        source_type: manifest.get("sourceType").and_then(|v| v.as_str()).unwrap_or("web").to_string(),
+        site: manifest.get("site").map(|v| {
+            serde_json::from_value(v.clone()).ok()
+        }).flatten(),
+        builtin: false,
+        enabled: true,
+        capabilities: manifest.get("capabilities").cloned(),
+        config_schema: manifest.get("configSchema").cloned(),
+    };
+    
+    // 触发插件更新事件
+    let _ = app.emit("plugins-updated", ());
+    
+    println!("[PluginEditor] Plugin installed: {} v{}", info.id, info.version);
+    Ok(info)
+}

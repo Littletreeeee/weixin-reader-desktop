@@ -438,6 +438,23 @@ export class SettingsStore {
     });
   }
 
+  /**
+   * 强制刷新设置（从后端重新加载）
+   * 用于热重载场景，确保获取最新的设置状态
+   */
+  public async refresh(): Promise<void> {
+    if (!this.lock) return;
+    
+    const newSettings = (await invoke<AppSettings>('get_settings')) || {};
+    const backendVersion = newSettings._version || 0;
+    
+    log.debug('[SettingsStore] Manual refresh, backend version:', backendVersion);
+    
+    // 强制加载后端数据
+    this.lock.loadFromExternal(newSettings, backendVersion);
+    this.notify();
+  }
+
   private notify() {
     if (!this.lock) return;
     const current = this.get();

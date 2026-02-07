@@ -73,8 +73,8 @@ export class RemoteManager {
       // 初始化 ChapterManager
       const success = await chapterManager.initialize(bookIdSegment);
       if (!success) {
+        // 可能未登录或页面未加载完成，静默重试
         if (++retries < maxRetries) setTimeout(check, 500);
-        else log.warn('[RemoteManager] 初始化失败');
         return;
       }
 
@@ -119,14 +119,12 @@ export class RemoteManager {
    * 跳转章节
    */
   private navigateChapter(direction: number): boolean {
-    // 检查登录状态
+    // 检查登录状态，未登录时静默返回
     if (!chapterManager.isLoggedIn()) {
-      log.warn('[RemoteManager] 未登录，章节跳转暂停');
       return false;
     }
 
     if (!chapterManager.isInitialized()) {
-      log.warn('[RemoteManager] 未初始化');
       return false;
     }
 
@@ -134,14 +132,12 @@ export class RemoteManager {
     this.updateCurrentChapterFromUrl();
 
     if (this.currentChapterIdx < 0) {
-      log.warn('[RemoteManager] 未知当前章节，请先翻页');
       return false;
     }
 
     const chapters = chapterManager.getChapters();
     const currentArrayIdx = chapters.findIndex(c => c.chapterIdx === this.currentChapterIdx);
     if (currentArrayIdx < 0) {
-      log.warn('[RemoteManager] 找不到当前章节');
       return false;
     }
 
@@ -161,7 +157,6 @@ export class RemoteManager {
     const targetUrl = chapterManager.buildChapterUrl(targetChapter.chapterIdx);
 
     if (!targetUrl) {
-      log.error('[RemoteManager] 无法生成目标 URL');
       return false;
     }
 

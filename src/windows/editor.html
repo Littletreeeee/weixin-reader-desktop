@@ -1,0 +1,1442 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8">
+  <title>插件编辑器</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg-color: #f5f5f5;
+      --sidebar-bg: #ffffff;
+      --content-bg: #ffffff;
+      --toolbar-bg: #ffffff;
+      --text-color: #202124;
+      --text-secondary: #5f6368;
+      --border-color: #e0e0e0;
+      --hover-bg: #f1f3f4;
+      --active-bg: #e8f0fe;
+      --active-color: #1a73e8;
+      --input-bg: #ffffff;
+      --danger-color: #ea4335;
+      --success-color: #34a853;
+      --warning-color: #fbbc04;
+      --code-bg: #fafafa;
+      --code-line-number: #999;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg-color: #1e1e1e;
+        --sidebar-bg: #252526;
+        --content-bg: #1e1e1e;
+        --toolbar-bg: #252526;
+        --text-color: #e8eaed;
+        --text-secondary: #9aa0a6;
+        --border-color: #3c4043;
+        --hover-bg: #3c4043;
+        --active-bg: #394457;
+        --active-color: #8ab4f8;
+        --input-bg: #3c4043;
+        --danger-color: #f28b82;
+        --success-color: #81c995;
+        --warning-color: #fdd663;
+        --code-bg: #1e1e1e;
+        --code-line-number: #858585;
+      }
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      height: 100vh;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    .container {
+      display: flex;
+      height: 100vh;
+    }
+
+    /* 侧边栏 */
+    .sidebar {
+      width: 180px;
+      min-width: 180px;
+      background-color: var(--sidebar-bg);
+      border-right: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .sidebar-header {
+      padding: 16px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .sidebar-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-color);
+    }
+
+    .nav-list {
+      flex: 1;
+      padding: 8px 0;
+      overflow-y: auto;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      padding: 10px 16px;
+      color: var(--text-secondary);
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.15s;
+      border-left: 3px solid transparent;
+    }
+
+    .nav-item:hover {
+      background-color: var(--hover-bg);
+    }
+
+    .nav-item.active {
+      background-color: var(--active-bg);
+      color: var(--active-color);
+      border-left-color: var(--active-color);
+      font-weight: 500;
+    }
+
+    .nav-item svg {
+      width: 18px;
+      height: 18px;
+      margin-right: 10px;
+      flex-shrink: 0;
+    }
+
+    /* 主编辑区 */
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .main-header {
+      padding: 12px 20px;
+      border-bottom: 1px solid var(--border-color);
+      background-color: var(--content-bg);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .main-title {
+      font-size: 15px;
+      font-weight: 500;
+    }
+
+    .main-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      background-color: var(--content-bg);
+    }
+
+    /* 表单区域 */
+    .section {
+      display: none;
+    }
+
+    .section.active {
+      display: block;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 13px;
+      font-weight: 500;
+      margin-bottom: 6px;
+      color: var(--text-color);
+    }
+
+    .form-hint {
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-top: 4px;
+    }
+
+    .form-error {
+      font-size: 12px;
+      color: var(--danger-color);
+      margin-top: 4px;
+      display: none;
+    }
+
+    .form-group.error .form-error {
+      display: block;
+    }
+
+    .form-group.error input,
+    .form-group.error textarea,
+    .form-group.error select {
+      border-color: var(--danger-color);
+    }
+
+    input[type="text"],
+    input[type="url"],
+    textarea,
+    select {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      background-color: var(--input-bg);
+      color: var(--text-color);
+      font-size: 13px;
+      transition: border-color 0.15s;
+    }
+
+    input:focus,
+    textarea:focus,
+    select:focus {
+      outline: none;
+      border-color: var(--active-color);
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 80px;
+      font-family: inherit;
+    }
+
+    select {
+      cursor: pointer;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%235f6368' d='M3 4.5L6 7.5L9 4.5'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      padding-right: 32px;
+    }
+
+    /* 开关组件 */
+    .toggle-group {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+    }
+
+    .toggle-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      background-color: var(--input-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+    }
+
+    .toggle-label {
+      font-size: 13px;
+      color: var(--text-color);
+    }
+
+    .toggle {
+      position: relative;
+      width: 36px;
+      height: 20px;
+      flex-shrink: 0;
+    }
+
+    .toggle input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .toggle-slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: var(--border-color);
+      border-radius: 10px;
+      transition: 0.2s;
+    }
+
+    .toggle-slider:before {
+      position: absolute;
+      content: "";
+      height: 16px;
+      width: 16px;
+      left: 2px;
+      bottom: 2px;
+      background-color: white;
+      border-radius: 50%;
+      transition: 0.2s;
+    }
+
+    .toggle input:checked + .toggle-slider {
+      background-color: var(--active-color);
+    }
+
+    .toggle input:checked + .toggle-slider:before {
+      transform: translateX(16px);
+    }
+
+    /* 代码编辑器区域 */
+    .code-section {
+      display: none;
+      height: 100%;
+    }
+
+    .code-section.active {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .file-tabs {
+      display: flex;
+      gap: 4px;
+      padding: 0 0 12px 0;
+      border-bottom: 1px solid var(--border-color);
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+
+    .file-tab {
+      padding: 6px 12px;
+      font-size: 12px;
+      background-color: var(--input-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      cursor: pointer;
+      color: var(--text-secondary);
+      transition: all 0.15s;
+    }
+
+    .file-tab:hover {
+      background-color: var(--hover-bg);
+    }
+
+    .file-tab.active {
+      background-color: var(--active-bg);
+      border-color: var(--active-color);
+      color: var(--active-color);
+    }
+
+    .code-editor-wrapper {
+      flex: 1;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      overflow: hidden;
+      background-color: var(--code-bg);
+    }
+
+    .code-editor {
+      width: 100%;
+      height: 100%;
+      padding: 12px;
+      font-family: "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, monospace;
+      font-size: 13px;
+      line-height: 1.5;
+      border: none;
+      background-color: transparent;
+      color: var(--text-color);
+      resize: none;
+      tab-size: 2;
+    }
+
+    .code-editor:focus {
+      outline: none;
+    }
+
+    /* 工具栏 */
+    .toolbar {
+      width: 260px;
+      min-width: 260px;
+      background-color: var(--toolbar-bg);
+      border-left: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .toolbar-section {
+      padding: 16px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .toolbar-section:last-child {
+      border-bottom: none;
+    }
+
+    .toolbar-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+
+    .preview-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 6px 0;
+      font-size: 13px;
+    }
+
+    .preview-label {
+      color: var(--text-secondary);
+    }
+
+    .preview-value {
+      color: var(--text-color);
+      font-weight: 500;
+      text-align: right;
+      max-width: 140px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .btn-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .btn {
+      padding: 10px 16px;
+      font-size: 13px;
+      font-weight: 500;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.15s;
+      text-align: center;
+    }
+
+    .btn-primary {
+      background-color: var(--active-color);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      filter: brightness(1.1);
+    }
+
+    .btn-secondary {
+      background-color: var(--input-bg);
+      color: var(--text-color);
+      border: 1px solid var(--border-color);
+    }
+
+    .btn-secondary:hover {
+      background-color: var(--hover-bg);
+    }
+
+    .btn-success {
+      background-color: var(--success-color);
+      color: white;
+    }
+
+    .btn-success:hover {
+      filter: brightness(1.1);
+    }
+
+    /* 验证状态 */
+    .validation-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .validation-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+    }
+
+    .validation-icon {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      flex-shrink: 0;
+    }
+
+    .validation-icon.valid {
+      background-color: var(--success-color);
+      color: white;
+    }
+
+    .validation-icon.invalid {
+      background-color: var(--danger-color);
+      color: white;
+    }
+
+    .validation-icon.pending {
+      background-color: var(--warning-color);
+      color: white;
+    }
+
+    /* 状态栏 */
+    .statusbar {
+      padding: 8px 16px;
+      background-color: var(--sidebar-bg);
+      border-top: 1px solid var(--border-color);
+      font-size: 12px;
+      color: var(--text-secondary);
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .status-dirty {
+      color: var(--warning-color);
+    }
+
+    /* 响应式 */
+    @media (max-width: 900px) {
+      .toolbar {
+        display: none;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <!-- 侧边栏 -->
+    <div class="sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-title">插件编辑器</div>
+      </div>
+      <div class="nav-list">
+        <div class="nav-item active" data-section="basic">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+            <path d="M2 17l10 5 10-5"/>
+            <path d="M2 12l10 5 10-5"/>
+          </svg>
+          基本信息
+        </div>
+        <div class="nav-item" data-section="site">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="2" y1="12" x2="22" y2="12"/>
+            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+          </svg>
+          站点配置
+        </div>
+        <div class="nav-item" data-section="capabilities">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2v4"/>
+            <path d="M12 18v4"/>
+            <path d="M4.93 4.93l2.83 2.83"/>
+            <path d="M16.24 16.24l2.83 2.83"/>
+            <path d="M2 12h4"/>
+            <path d="M18 12h4"/>
+            <path d="M4.93 19.07l2.83-2.83"/>
+            <path d="M16.24 7.76l2.83-2.83"/>
+          </svg>
+          功能能力
+        </div>
+        <div class="nav-item" data-section="code">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="16 18 22 12 16 6"/>
+            <polyline points="8 6 2 12 8 18"/>
+          </svg>
+          代码编辑
+        </div>
+        <div class="nav-item" data-section="styles">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>
+          </svg>
+          样式文件
+        </div>
+      </div>
+    </div>
+
+    <!-- 主编辑区 -->
+    <div class="main">
+      <div class="main-header">
+        <div class="main-title" id="sectionTitle">基本信息</div>
+      </div>
+      <div class="main-content">
+        <!-- 基本信息表单 -->
+        <div class="section active" id="section-basic">
+          <div class="form-group">
+            <label class="form-label">插件 ID *</label>
+            <input type="text" id="pluginId" placeholder="my-plugin" pattern="^[a-z0-9-]+$">
+            <div class="form-hint">唯一标识符，只能包含小写字母、数字、短横线</div>
+            <div class="form-error">ID 格式不正确</div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">插件名称 *</label>
+            <input type="text" id="pluginName" placeholder="我的插件" maxlength="50">
+            <div class="form-hint">显示名称，最多 50 字符</div>
+            <div class="form-error">名称不能为空</div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">版本号 *</label>
+            <input type="text" id="pluginVersion" value="1.0.0" pattern="^\d+\.\d+\.\d+$">
+            <div class="form-hint">语义化版本，格式: 主版本.次版本.修订号</div>
+            <div class="form-error">版本号格式不正确</div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">描述</label>
+            <textarea id="pluginDesc" placeholder="插件功能描述..." maxlength="200"></textarea>
+            <div class="form-hint">简短描述插件功能，最多 200 字符</div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">作者</label>
+            <input type="text" id="pluginAuthor" placeholder="作者名称">
+          </div>
+          <div class="form-group">
+            <label class="form-label">主页</label>
+            <input type="url" id="pluginHomepage" placeholder="https://github.com/...">
+            <div class="form-hint">插件项目主页或文档链接</div>
+          </div>
+        </div>
+
+        <!-- 站点配置表单 -->
+        <div class="section" id="section-site">
+          <div class="form-group">
+            <label class="form-label">来源类型 *</label>
+            <select id="sourceType">
+              <option value="web">Web 网页</option>
+              <option value="local">本地文件</option>
+              <option value="cloud">云存储</option>
+            </select>
+            <div class="form-hint">插件适配的内容来源类型</div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">渲染模式 *</label>
+            <select id="renderMode">
+              <option value="webview">WebView 渲染</option>
+              <option value="custom">自定义渲染</option>
+            </select>
+            <div class="form-hint">内容渲染方式</div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">域名 *</label>
+            <input type="text" id="siteDomain" placeholder="weread.qq.com">
+            <div class="form-hint">目标网站域名，用于匹配页面</div>
+            <div class="form-error">域名不能为空</div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">首页 URL *</label>
+            <input type="url" id="siteHomeUrl" placeholder="https://weread.qq.com/">
+            <div class="form-hint">网站首页完整地址</div>
+            <div class="form-error">请输入有效的 URL</div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">阅读器 URL 模式</label>
+            <input type="text" id="siteReaderPattern" placeholder="/web/reader/">
+            <div class="form-hint">阅读页面 URL 匹配模式</div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">首页 URL 模式</label>
+            <input type="text" id="siteHomePattern" placeholder="/">
+            <div class="form-hint">首页 URL 匹配模式（可选）</div>
+          </div>
+        </div>
+
+        <!-- 功能能力表单 -->
+        <div class="section" id="section-capabilities">
+          <div class="form-group">
+            <label class="form-label">启用的功能</label>
+            <div class="form-hint" style="margin-bottom: 12px;">选择插件支持的功能能力</div>
+            <div class="toggle-group">
+              <div class="toggle-item">
+                <span class="toggle-label">宽屏模式</span>
+                <label class="toggle">
+                  <input type="checkbox" id="capWideMode" checked>
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="toggle-item">
+                <span class="toggle-label">深色模式</span>
+                <label class="toggle">
+                  <input type="checkbox" id="capDarkMode">
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="toggle-item">
+                <span class="toggle-label">隐藏工具栏</span>
+                <label class="toggle">
+                  <input type="checkbox" id="capHideToolbar" checked>
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="toggle-item">
+                <span class="toggle-label">隐藏导航栏</span>
+                <label class="toggle">
+                  <input type="checkbox" id="capHideNavbar">
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="toggle-item">
+                <span class="toggle-label">自动翻页</span>
+                <label class="toggle">
+                  <input type="checkbox" id="capAutoFlip" checked>
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="toggle-item">
+                <span class="toggle-label">章节导航</span>
+                <label class="toggle">
+                  <input type="checkbox" id="capChapterNav">
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="toggle-item">
+                <span class="toggle-label">进度追踪</span>
+                <label class="toggle">
+                  <input type="checkbox" id="capProgressTracker">
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="toggle-item">
+                <span class="toggle-label">双栏模式</span>
+                <label class="toggle">
+                  <input type="checkbox" id="capDoubleColumn">
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="toggle-item">
+                <span class="toggle-label">隐藏光标</span>
+                <label class="toggle">
+                  <input type="checkbox" id="capHideCursor">
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="toggle-item">
+                <span class="toggle-label">遥控器支持</span>
+                <label class="toggle">
+                  <input type="checkbox" id="capRemoteControl">
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 代码编辑区 -->
+        <div class="code-section" id="section-code">
+          <div class="file-tabs">
+            <div class="file-tab active" data-file="index.ts">index.ts</div>
+          </div>
+          <div class="code-editor-wrapper">
+            <textarea class="code-editor" id="codeEditor" spellcheck="false"></textarea>
+          </div>
+        </div>
+
+        <!-- 样式文件编辑区 -->
+        <div class="code-section" id="section-styles">
+          <div class="file-tabs">
+            <div class="file-tab active" data-file="wide.css">wide.css</div>
+            <div class="file-tab" data-file="toolbar.css">toolbar.css</div>
+            <div class="file-tab" data-file="navbar.css">navbar.css</div>
+            <div class="file-tab" data-file="theme.css">theme.css</div>
+          </div>
+          <div class="code-editor-wrapper">
+            <textarea class="code-editor" id="styleEditor" spellcheck="false"></textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 工具栏 -->
+    <div class="toolbar">
+      <div class="toolbar-section">
+        <div class="toolbar-title">插件预览</div>
+        <div class="preview-item">
+          <span class="preview-label">ID</span>
+          <span class="preview-value" id="previewId">-</span>
+        </div>
+        <div class="preview-item">
+          <span class="preview-label">名称</span>
+          <span class="preview-value" id="previewName">-</span>
+        </div>
+        <div class="preview-item">
+          <span class="preview-label">版本</span>
+          <span class="preview-value" id="previewVersion">1.0.0</span>
+        </div>
+        <div class="preview-item">
+          <span class="preview-label">类型</span>
+          <span class="preview-value" id="previewType">Web</span>
+        </div>
+        <div class="preview-item">
+          <span class="preview-label">域名</span>
+          <span class="preview-value" id="previewDomain">-</span>
+        </div>
+      </div>
+
+      <div class="toolbar-section">
+        <div class="toolbar-title">操作</div>
+        <div class="btn-group">
+          <button class="btn btn-primary" id="btnSave">保存</button>
+          <button class="btn btn-secondary" id="btnSaveAs">另存为...</button>
+          <button class="btn btn-success" id="btnInstall">安装到应用</button>
+          <button class="btn btn-secondary" id="btnReset">重置</button>
+        </div>
+      </div>
+
+      <div class="toolbar-section">
+        <div class="toolbar-title">验证状态</div>
+        <div class="validation-list">
+          <div class="validation-item">
+            <span class="validation-icon pending" id="validManifest">?</span>
+            <span>Manifest 配置</span>
+          </div>
+          <div class="validation-item">
+            <span class="validation-icon pending" id="validCode">?</span>
+            <span>插件代码</span>
+          </div>
+          <div class="validation-item">
+            <span class="validation-icon pending" id="validStyles">?</span>
+            <span>样式文件</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 状态栏 -->
+  <div class="statusbar">
+    <span id="statusText">编辑模式: 新建</span>
+    <span id="statusDirty"></span>
+  </div>
+
+  <script>
+    // 编辑器状态
+    const editorState = {
+      mode: 'create', // 'create' | 'edit'
+      pluginId: null,
+      isBuiltin: false,
+      isDirty: false,
+      pluginPath: null,
+      files: {
+        'index.ts': '',
+        'wide.css': '',
+        'toolbar.css': '',
+        'navbar.css': '',
+        'theme.css': ''
+      }
+    };
+
+    // 默认代码模板
+    const defaultCodeTemplate = `import type { ReaderPlugin, PluginManifest, PluginStyles, PluginAPI } from '../../scripts/core/plugin_types';
+
+const manifest: PluginManifest = {
+  id: 'my-plugin',
+  name: '我的插件',
+  version: '1.0.0',
+  description: '插件描述',
+  sourceType: 'web',
+  renderMode: 'webview',
+  site: {
+    domain: ['example.com'],
+    homeUrl: 'https://example.com/',
+    readerPattern: '/reader/'
+  },
+  capabilities: {
+    wideMode: true,
+    hideToolbar: true,
+    autoFlip: true
+  }
+};
+
+class MyPlugin implements ReaderPlugin {
+  readonly manifest = manifest;
+  private api: PluginAPI | null = null;
+
+  onLoad(api: PluginAPI): void {
+    this.api = api;
+    api.log.info('Plugin loaded');
+  }
+
+  onUnload(): void {
+    this.api?.log.info('Plugin unloaded');
+    this.api = null;
+  }
+
+  isReaderPage(): boolean {
+    return window.location.pathname.includes('/reader/');
+  }
+
+  isHomePage(): boolean {
+    return window.location.pathname === '/';
+  }
+
+  matchesDomain(): boolean {
+    const domains = this.manifest.site?.domain || [];
+    const domainList = Array.isArray(domains) ? domains : [domains];
+    return domainList.includes(window.location.hostname);
+  }
+
+  nextPage(): void {
+    // 实现下一页逻辑
+  }
+
+  prevPage(): void {
+    // 实现上一页逻辑
+  }
+
+  getStyles(): PluginStyles {
+    return {};
+  }
+}
+
+export const createMyPlugin = (): ReaderPlugin => new MyPlugin();
+export default MyPlugin;
+`;
+
+    const defaultStyleTemplates = {
+      'wide.css': `/* 宽屏模式样式 */
+.reader-container {
+  max-width: 96% !important;
+  margin: 0 auto;
+}`,
+      'toolbar.css': `/* 工具栏隐藏样式 */
+.toolbar {
+  display: none !important;
+}`,
+      'navbar.css': `/* 导航栏隐藏样式 */
+.navbar {
+  display: none !important;
+}`,
+      'theme.css': `/* 主题样式 */
+/* 深色模式 */
+@media (prefers-color-scheme: dark) {
+  body {
+    background-color: #1a1a1a;
+    color: #e0e0e0;
+  }
+}`
+    };
+
+    // Tauri API
+    const tauri = window.__TAURI__;
+    const invoke = tauri?.core?.invoke;
+    const listen = tauri?.event?.listen;
+    const emit = tauri?.event?.emit;
+
+    // DOM 元素
+    const navItems = document.querySelectorAll('.nav-item');
+    const sections = document.querySelectorAll('.section, .code-section');
+    const sectionTitle = document.getElementById('sectionTitle');
+    const codeEditor = document.getElementById('codeEditor');
+    const styleEditor = document.getElementById('styleEditor');
+
+    // 初始化
+    document.addEventListener('DOMContentLoaded', async () => {
+      initNavigation();
+      initFormListeners();
+      initCodeEditors();
+      initButtons();
+      loadTemplate();
+      await loadInitData();
+    });
+
+    // 导航切换
+    function initNavigation() {
+      navItems.forEach(item => {
+        item.addEventListener('click', () => {
+          const section = item.dataset.section;
+          switchSection(section);
+        });
+      });
+    }
+
+    function switchSection(sectionName) {
+      // 更新导航状态
+      navItems.forEach(item => {
+        item.classList.toggle('active', item.dataset.section === sectionName);
+      });
+
+      // 更新内容区域
+      sections.forEach(section => {
+        const id = section.id.replace('section-', '');
+        section.classList.toggle('active', id === sectionName);
+      });
+
+      // 更新标题
+      const titles = {
+        basic: '基本信息',
+        site: '站点配置',
+        capabilities: '功能能力',
+        code: '代码编辑',
+        styles: '样式文件'
+      };
+      sectionTitle.textContent = titles[sectionName] || sectionName;
+    }
+
+    // 表单监听
+    function initFormListeners() {
+      const inputs = document.querySelectorAll('input, textarea, select');
+      inputs.forEach(input => {
+        input.addEventListener('input', () => {
+          markDirty();
+          updatePreview();
+          validateForm();
+        });
+        input.addEventListener('change', () => {
+          markDirty();
+          updatePreview();
+          validateForm();
+        });
+      });
+    }
+
+    // 代码编辑器
+    function initCodeEditors() {
+      // 代码标签页切换
+      document.querySelectorAll('#section-code .file-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+          document.querySelectorAll('#section-code .file-tab').forEach(t => t.classList.remove('active'));
+          tab.classList.add('active');
+          const file = tab.dataset.file;
+          codeEditor.value = editorState.files[file] || '';
+        });
+      });
+
+      // 样式标签页切换
+      document.querySelectorAll('#section-styles .file-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+          document.querySelectorAll('#section-styles .file-tab').forEach(t => t.classList.remove('active'));
+          tab.classList.add('active');
+          const file = tab.dataset.file;
+          styleEditor.value = editorState.files[file] || '';
+        });
+      });
+
+      // 代码编辑监听
+      codeEditor.addEventListener('input', () => {
+        const activeTab = document.querySelector('#section-code .file-tab.active');
+        if (activeTab) {
+          editorState.files[activeTab.dataset.file] = codeEditor.value;
+        }
+        markDirty();
+        validateCode();
+      });
+
+      styleEditor.addEventListener('input', () => {
+        const activeTab = document.querySelector('#section-styles .file-tab.active');
+        if (activeTab) {
+          editorState.files[activeTab.dataset.file] = styleEditor.value;
+        }
+        markDirty();
+      });
+
+      // Tab 键支持
+      [codeEditor, styleEditor].forEach(editor => {
+        editor.addEventListener('keydown', (e) => {
+          if (e.key === 'Tab') {
+            e.preventDefault();
+            const start = editor.selectionStart;
+            const end = editor.selectionEnd;
+            editor.value = editor.value.substring(0, start) + '  ' + editor.value.substring(end);
+            editor.selectionStart = editor.selectionEnd = start + 2;
+            editor.dispatchEvent(new Event('input'));
+          }
+          // Ctrl/Cmd + S 保存
+          if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+            e.preventDefault();
+            savePlugin();
+          }
+        });
+      });
+    }
+
+    // 按钮事件
+    function initButtons() {
+      document.getElementById('btnSave').addEventListener('click', savePlugin);
+      document.getElementById('btnSaveAs').addEventListener('click', savePluginAs);
+      document.getElementById('btnInstall').addEventListener('click', installPlugin);
+      document.getElementById('btnReset').addEventListener('click', resetForm);
+    }
+
+    // 加载模板
+    function loadTemplate() {
+      editorState.files['index.ts'] = defaultCodeTemplate;
+      Object.assign(editorState.files, defaultStyleTemplates);
+      codeEditor.value = editorState.files['index.ts'];
+      styleEditor.value = editorState.files['wide.css'];
+    }
+
+    // 从 Rust 后端加载初始数据
+    async function loadInitData() {
+      if (!invoke) return;
+
+      try {
+        // 监听初始化数据
+        if (listen) {
+          await listen('editor-init', (event) => {
+            const data = event.payload;
+            if (data) {
+              loadPluginData(data);
+            }
+          });
+        }
+      } catch (e) {
+        console.error('Failed to load init data:', e);
+      }
+    }
+
+    // 加载插件数据
+    function loadPluginData(data) {
+      editorState.mode = data.mode || 'create';
+      editorState.pluginId = data.pluginId;
+      editorState.isBuiltin = data.isBuiltin || false;
+      editorState.pluginPath = data.pluginPath;
+
+      if (data.manifest) {
+        const m = data.manifest;
+        document.getElementById('pluginId').value = m.id || '';
+        document.getElementById('pluginName').value = m.name || '';
+        document.getElementById('pluginVersion').value = m.version || '1.0.0';
+        document.getElementById('pluginDesc').value = m.description || '';
+        document.getElementById('pluginAuthor').value = m.author || '';
+        document.getElementById('pluginHomepage').value = m.homepage || '';
+        
+        document.getElementById('sourceType').value = m.sourceType || 'web';
+        document.getElementById('renderMode').value = m.renderMode || 'webview';
+        
+        if (m.site) {
+          const domain = Array.isArray(m.site.domain) ? m.site.domain[0] : m.site.domain;
+          document.getElementById('siteDomain').value = domain || '';
+          document.getElementById('siteHomeUrl').value = m.site.homeUrl || '';
+          document.getElementById('siteReaderPattern').value = m.site.readerPattern || '';
+          document.getElementById('siteHomePattern').value = m.site.homePattern || '';
+        }
+        
+        if (m.capabilities) {
+          document.getElementById('capWideMode').checked = !!m.capabilities.wideMode;
+          document.getElementById('capDarkMode').checked = !!m.capabilities.darkMode;
+          document.getElementById('capHideToolbar').checked = !!m.capabilities.hideToolbar;
+          document.getElementById('capHideNavbar').checked = !!m.capabilities.hideNavbar;
+          document.getElementById('capAutoFlip').checked = !!m.capabilities.autoFlip;
+          document.getElementById('capChapterNav').checked = !!m.capabilities.chapterNav;
+          document.getElementById('capProgressTracker').checked = !!m.capabilities.progressTracker;
+          document.getElementById('capDoubleColumn').checked = !!m.capabilities.doubleColumn;
+          document.getElementById('capHideCursor').checked = !!m.capabilities.hideCursor;
+          document.getElementById('capRemoteControl').checked = !!m.capabilities.remoteControl;
+        }
+      }
+
+      if (data.files) {
+        data.files.forEach(file => {
+          editorState.files[file.name] = file.content;
+        });
+        codeEditor.value = editorState.files['index.ts'] || '';
+        styleEditor.value = editorState.files['wide.css'] || '';
+      }
+
+      updatePreview();
+      validateForm();
+      updateStatusBar();
+    }
+
+    // 收集表单数据
+    function collectFormData() {
+      const domain = document.getElementById('siteDomain').value.trim();
+      
+      return {
+        manifest: {
+          id: document.getElementById('pluginId').value.trim(),
+          name: document.getElementById('pluginName').value.trim(),
+          version: document.getElementById('pluginVersion').value.trim(),
+          description: document.getElementById('pluginDesc').value.trim(),
+          author: document.getElementById('pluginAuthor').value.trim(),
+          homepage: document.getElementById('pluginHomepage').value.trim(),
+          sourceType: document.getElementById('sourceType').value,
+          renderMode: document.getElementById('renderMode').value,
+          site: {
+            domain: domain ? [domain] : [],
+            homeUrl: document.getElementById('siteHomeUrl').value.trim(),
+            readerPattern: document.getElementById('siteReaderPattern').value.trim(),
+            homePattern: document.getElementById('siteHomePattern').value.trim() || undefined
+          },
+          capabilities: {
+            wideMode: document.getElementById('capWideMode').checked,
+            darkMode: document.getElementById('capDarkMode').checked,
+            hideToolbar: document.getElementById('capHideToolbar').checked,
+            hideNavbar: document.getElementById('capHideNavbar').checked,
+            autoFlip: document.getElementById('capAutoFlip').checked,
+            chapterNav: document.getElementById('capChapterNav').checked,
+            progressTracker: document.getElementById('capProgressTracker').checked,
+            doubleColumn: document.getElementById('capDoubleColumn').checked,
+            hideCursor: document.getElementById('capHideCursor').checked,
+            remoteControl: document.getElementById('capRemoteControl').checked
+          },
+          builtin: false
+        },
+        files: Object.entries(editorState.files).map(([name, content]) => ({
+          name,
+          content
+        }))
+      };
+    }
+
+    // 更新预览
+    function updatePreview() {
+      document.getElementById('previewId').textContent = document.getElementById('pluginId').value || '-';
+      document.getElementById('previewName').textContent = document.getElementById('pluginName').value || '-';
+      document.getElementById('previewVersion').textContent = document.getElementById('pluginVersion').value || '1.0.0';
+      document.getElementById('previewType').textContent = document.getElementById('sourceType').value === 'web' ? 'Web' : '本地';
+      document.getElementById('previewDomain').textContent = document.getElementById('siteDomain').value || '-';
+    }
+
+    // 表单验证
+    function validateForm() {
+      let valid = true;
+
+      // 验证必填字段
+      const requiredFields = [
+        { id: 'pluginId', pattern: /^[a-z0-9-]+$/ },
+        { id: 'pluginName', pattern: /.+/ },
+        { id: 'pluginVersion', pattern: /^\d+\.\d+\.\d+$/ },
+        { id: 'siteDomain', pattern: /.+/ },
+        { id: 'siteHomeUrl', pattern: /^https?:\/\/.+/ }
+      ];
+
+      requiredFields.forEach(field => {
+        const input = document.getElementById(field.id);
+        const group = input.closest('.form-group');
+        const value = input.value.trim();
+        const isValid = field.pattern.test(value);
+        
+        if (group) {
+          group.classList.toggle('error', !isValid && value !== '');
+        }
+        
+        if (!isValid) valid = false;
+      });
+
+      // 更新验证状态图标
+      const manifestIcon = document.getElementById('validManifest');
+      manifestIcon.textContent = valid ? '✓' : '✗';
+      manifestIcon.className = 'validation-icon ' + (valid ? 'valid' : 'invalid');
+
+      return valid;
+    }
+
+    // 代码验证（简单语法检查）
+    function validateCode() {
+      const code = editorState.files['index.ts'] || '';
+      let valid = true;
+
+      // 简单检查：是否有 export
+      if (!code.includes('export')) {
+        valid = false;
+      }
+
+      const codeIcon = document.getElementById('validCode');
+      codeIcon.textContent = valid ? '✓' : '?';
+      codeIcon.className = 'validation-icon ' + (valid ? 'valid' : 'pending');
+
+      return valid;
+    }
+
+    // 标记为已修改
+    function markDirty() {
+      editorState.isDirty = true;
+      document.getElementById('statusDirty').textContent = '未保存';
+      document.getElementById('statusDirty').className = 'status-dirty';
+    }
+
+    // 标记为已保存
+    function markClean() {
+      editorState.isDirty = false;
+      document.getElementById('statusDirty').textContent = '';
+    }
+
+    // 更新状态栏
+    function updateStatusBar() {
+      const modeText = editorState.mode === 'create' ? '新建' : '编辑';
+      const nameText = editorState.pluginId ? ` - ${editorState.pluginId}` : '';
+      document.getElementById('statusText').textContent = `编辑模式: ${modeText}${nameText}`;
+    }
+
+    // 保存插件
+    async function savePlugin() {
+      if (!validateForm()) {
+        alert('请检查表单填写是否正确');
+        return;
+      }
+
+      const data = collectFormData();
+
+      if (!invoke) {
+        console.log('Save plugin data:', data);
+        alert('保存功能需要在应用中运行');
+        return;
+      }
+
+      try {
+        if (editorState.mode === 'edit' && editorState.pluginPath) {
+          // 编辑模式：覆盖原文件
+          await invoke('save_plugin', {
+            path: editorState.pluginPath,
+            manifest: data.manifest,
+            files: data.files
+          });
+          markClean();
+          alert('保存成功！');
+        } else {
+          // 新建模式：调用另存为
+          await savePluginAs();
+        }
+      } catch (e) {
+        console.error('Save failed:', e);
+        alert('保存失败：' + e);
+      }
+    }
+
+    // 另存为
+    async function savePluginAs() {
+      if (!validateForm()) {
+        alert('请检查表单填写是否正确');
+        return;
+      }
+
+      const data = collectFormData();
+      const pluginId = data.manifest.id;
+
+      if (!invoke) {
+        console.log('Save as plugin data:', data);
+        alert('另存为功能需要在应用中运行');
+        return;
+      }
+
+      try {
+        const path = await invoke('save_plugin_dialog', {
+          defaultName: pluginId
+        });
+
+        if (path) {
+          await invoke('save_plugin', {
+            path,
+            manifest: data.manifest,
+            files: data.files
+          });
+          
+          editorState.pluginPath = path;
+          editorState.mode = 'edit';
+          markClean();
+          updateStatusBar();
+          alert('保存成功！');
+        }
+      } catch (e) {
+        console.error('Save as failed:', e);
+        alert('保存失败：' + e);
+      }
+    }
+
+    // 安装到应用
+    async function installPlugin() {
+      if (!validateForm()) {
+        alert('请检查表单填写是否正确');
+        return;
+      }
+
+      const data = collectFormData();
+
+      if (!invoke) {
+        console.log('Install plugin data:', data);
+        alert('安装功能需要在应用中运行');
+        return;
+      }
+
+      try {
+        await invoke('install_plugin_from_editor', {
+          manifest: data.manifest,
+          files: data.files
+        });
+        
+        if (emit) {
+          await emit('plugins-updated');
+        }
+        
+        markClean();
+        alert('安装成功！插件已添加到应用。');
+      } catch (e) {
+        console.error('Install failed:', e);
+        alert('安装失败：' + e);
+      }
+    }
+
+    // 重置表单
+    function resetForm() {
+      if (editorState.isDirty) {
+        if (!confirm('确定要重置吗？未保存的更改将丢失。')) {
+          return;
+        }
+      }
+
+      // 清空表单
+      document.querySelectorAll('input[type="text"], input[type="url"], textarea').forEach(input => {
+        input.value = '';
+      });
+      document.getElementById('pluginVersion').value = '1.0.0';
+      document.getElementById('sourceType').value = 'web';
+      document.getElementById('renderMode').value = 'webview';
+
+      // 重置开关
+      document.querySelectorAll('.toggle input').forEach(toggle => {
+        toggle.checked = ['capWideMode', 'capHideToolbar', 'capAutoFlip'].includes(toggle.id);
+      });
+
+      // 重置代码
+      loadTemplate();
+
+      editorState.mode = 'create';
+      editorState.pluginId = null;
+      editorState.pluginPath = null;
+      
+      markClean();
+      updatePreview();
+      validateForm();
+      updateStatusBar();
+    }
+
+    // 快捷键
+    document.addEventListener('keydown', (e) => {
+      // Ctrl/Cmd + S 保存
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        savePlugin();
+      }
+    });
+
+    // 窗口关闭前检查
+    window.addEventListener('beforeunload', (e) => {
+      if (editorState.isDirty) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    });
+  </script>
+</body>
+
+</html>

@@ -132,7 +132,6 @@ export class ProgressTracker extends BaseManager {
     }
 
     if (!bookId) {
-      console.error('[ProgressTracker] bookId 为空，无法初始化');
       return;
     }
 
@@ -146,7 +145,6 @@ export class ProgressTracker extends BaseManager {
       // 1. 提取 URL 路径作为 bookIdSegment
       const pathMatch = window.location.pathname.match(/\/web\/reader\/([^?#]+)/);
       if (!pathMatch) {
-        console.warn('[ProgressTracker] 无法从 URL 提取路径');
         return;
       }
       const fullPath = pathMatch[1];
@@ -156,26 +154,23 @@ export class ProgressTracker extends BaseManager {
       // 2. 初始化章节数据
       const success = await chapterManager.initialize(bookIdSegment);
       if (!success) {
-        console.warn('[ProgressTracker] 无法初始化章节数据');
+        // ChapterManager 初始化失败（可能未登录），静默返回
         return;
       }
 
       const chapterInfos = chapterManager.getChapters();
       if (!chapterInfos.length) {
-        console.warn('[ProgressTracker] 章节数据为空');
         return;
       }
 
       // 3. 获取初始阅读进度（只调用一次 API）
       const numericBookId = chapterManager.readNumericBookId();
       if (!numericBookId) {
-        console.warn('[ProgressTracker] 无法获取数字型 bookId');
         return;
       }
 
       const readInfo = await this.fetchReadInfo(numericBookId);
       if (!readInfo || readInfo.chapterIdx === undefined || readInfo.chapterOffset === undefined) {
-        console.warn('[ProgressTracker] 无法获取初始阅读进度');
         return;
       }
 
@@ -185,7 +180,6 @@ export class ProgressTracker extends BaseManager {
       // 4. 计算初始进度百分比
       const currentChapterInfo = chapterInfos.find(ch => ch.chapterIdx === readInfo.chapterIdx);
       if (!currentChapterInfo) {
-        console.warn(`[ProgressTracker] 找不到当前章节信息，chapterIdx=${readInfo.chapterIdx}`);
         return;
       }
 
@@ -216,13 +210,11 @@ export class ProgressTracker extends BaseManager {
     }
 
     if (!bookId) {
-      console.warn('[ProgressTracker] 无法获取 bookId，跳过章节切换处理');
       return;
     }
 
     const chapterInfos = chapterManager.getChapters();
     if (!chapterInfos.length) {
-      console.warn('[ProgressTracker] 无章节信息缓存，无法处理章节切换');
       return;
     }
 
@@ -256,8 +248,7 @@ export class ProgressTracker extends BaseManager {
     // 从缓存查找新章节信息
     const newChapterInfo = chapterInfos.find(ch => ch.chapterIdx === newChapterIdx);
     if (!newChapterInfo) {
-      console.warn(`[ProgressTracker] 找不到新章节信息: chapterIdx=${newChapterIdx}`);
-      // 可能翻到了书的开头或结尾，忽略
+      // 可能翻到了书的开头或结尾，静默忽略
       return;
     }
 
@@ -295,7 +286,6 @@ export class ProgressTracker extends BaseManager {
   private async reinitializeAfterJump(bookId: string): Promise<void> {
     const chapterInfos = chapterManager.getChapters();
     if (!chapterInfos.length) {
-      console.warn('[ProgressTracker] 无章节缓存，无法匹配');
       return;
     }
 
@@ -316,7 +306,6 @@ export class ProgressTracker extends BaseManager {
     }
 
     if (!matchedChapter) {
-      console.warn('[ProgressTracker] 无法从 Title 匹配章节');
       return;
     }
 
@@ -541,7 +530,6 @@ export class ProgressTracker extends BaseManager {
   private extractBookIdFromUrl(url: string): string | null {
     const match = url.match(/\/web\/reader\/([^/]+)/);
     if (!match) {
-      console.warn('[ProgressTracker] 无法从 URL 提取 bookId:', url);
       return null;
     }
 
@@ -605,7 +593,7 @@ export class ProgressTracker extends BaseManager {
       return null;
 
     } catch (error: any) {
-      console.error('[ProgressTracker] 获取阅读进度失败:', error);
+      // 未登录或网络错误时静默返回
       return null;
     }
   }

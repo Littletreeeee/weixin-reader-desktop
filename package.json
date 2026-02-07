@@ -1,13 +1,15 @@
 {
   "name": "weixin-reader",
   "private": true,
-  "version": "0.8.0",
+  "version": "0.9.0",
   "type": "module",
   "scripts": {
     "start": "bun run sync-version && tauri dev",
     "dev": "bun run sync-version && vite",
     "sync-version": "bun src/scripts/sync_version.ts",
     "build:inject": "bun build src/scripts/inject.ts --outfile=src/scripts/inject.js --target=browser --minify-whitespace",
+    "build:plugin": "bun src/scripts/build_plugin.ts",
+    "build:plugin:all": "bun src/scripts/build_plugin.ts --all",
     "build": "bun run build:inject && rm -rf dist && mkdir -p dist && cp index.html dist/ && cp src/windows/*.html dist/ && cp icon.png dist/",
     "preview": "vite preview",
     "tauri": "tauri",
