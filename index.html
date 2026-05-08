@@ -393,19 +393,13 @@ async function showShelf() {
 
 // ==================== 打开书籍 ====================
 async function openBook(bookId, chapterList) {
-    // chapterList 是索引中的章节信息，需要加载实际内容
-    const chapters = [];
-    for (const ch of chapterList) {
-        try {
-            const data = await tauriInvoke('get_cached_chapter', {
-                bookId,
-                chapterId: ch.chapterId,
-            });
-            chapters.push(data);
-        } catch(e) {
-            console.warn(`加载章节失败: ${ch.title}`, e);
-        }
-    }
+    // chapterList 是索引中的章节信息
+    // 不一次性加载所有内容，只保存索引，每次切换时按需加载
+    const chapters = chapterList.map(ch => ({
+        chapterId: ch.chapterId,
+        title: ch.title,
+        content: null, // 延迟加载
+    }));
 
     if (chapters.length === 0) {
         alert('此书无可读内容');
@@ -417,7 +411,9 @@ async function openBook(bookId, chapterList) {
 
     currentBook = { bookId, chapters };
     currentChapterIdx = 0;
-    renderChapter();
+
+    // 加载第一章内容
+    await loadAndRenderChapter();
 }
 
 // ==================== 渲染章节 ====================
@@ -472,18 +468,41 @@ function renderChapter() {
 }
 
 // ==================== 章节导航 ====================
-function prevChapter() {
+async function prevChapter() {
     if (currentChapterIdx > 0) {
         currentChapterIdx--;
-        renderChapter();
+        await loadAndRenderChapter();
     }
 }
 
-function nextChapter() {
+async function nextChapter() {
     if (currentBook && currentChapterIdx < currentBook.chapters.length - 1) {
         currentChapterIdx++;
-        renderChapter();
+        await loadAndRenderChapter();
     }
+}
+
+/**
+ * 加载并渲染当前章节（每次切换都重新从文件系统读取）
+ */
+async function loadAndRenderChapter() {
+    if (!currentBook) return;
+
+    const ch = currentBook.chapters[currentChapterIdx];
+    
+    // 每次切换都重新从文件系统加载内容
+    try {
+        const data = await tauriInvoke('get_cached_chapter', {
+            bookId: currentBook.bookId,
+            chapterId: ch.chapterId || String(currentChapterIdx),
+        });
+        // 更新当前章节数据
+        currentBook.chapters[currentChapterIdx] = data;
+    } catch(e) {
+        console.warn('加载章节失败:', e);
+    }
+
+    renderChapter();
 }
 
 // ==================== 快捷键 ====================
