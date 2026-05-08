@@ -759,3 +759,46 @@ fn calculate_dir_size(path: &std::path::Path) -> u64 {
     }
     size
 }
+
+/// 获取一本书的所有章节内容（一次性返回）
+#[tauri::command]
+pub fn get_all_chapters(app: AppHandle, book_id: String) -> Result<Vec<serde_json::Value>, String> {
+    let cache_dir = app.path().app_config_dir()
+        .map_err(|e| e.to_string())?
+        .join("book_cache")
+        .join(&book_id);
+    
+    if !cache_dir.exists() {
+        return Ok(vec![]);
+    }
+    
+    let mut chapters = Vec::new();
+    
+    if let Ok(entries) = std::fs::read_dir(&cache_dir) {
+        for entry in entries.flatten() {
+            let name = entry.file_name().to_string_lossy().to_string();
+            // 跳过索引文件和bookinfo
+            if name == "_index.json" || name.contains("__bookinfo__") {
+                continue;
+            }
+            if name.ends_with(".json") {
+                if let Ok(content) = std::fs::read_to_string(entry.path()) {
+                    if let Ok(data) = serde_json::from_str::<serde_json::Value>(&content) {
+                        chapters.push(data);
+                    }
+                }
+            }
+        }
+    }
+    
+    // 按 chapterId 排序
+    chapters.sort_by(|a, b| {
+        let id_a = a.get("chapterId").and_then(|v| v.as_str()).unwrap_or("0")
+            .parse::<i32>().unwrap_or(0);
+        let id_b = b.get("chapterId").and_then(|v| v.as_str()).unwrap_or("0")
+            .parse::<i32>().unwrap_or(0);
+        id_a.cmp(&id_b)
+    });
+    
+    Ok(chapters)
+}

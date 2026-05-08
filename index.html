@@ -393,31 +393,37 @@ async function showShelf() {
 
 // ==================== 打开书籍 ====================
 async function openBook(bookId, chapterList) {
-    if (chapterList.length === 0) {
-        alert('此书无可读内容');
+    // 一次性加载所有章节内容
+    let chapters = [];
+    try {
+        chapters = await tauriInvoke('get_all_chapters', { bookId });
+    } catch(e) {
+        // 如果 invoke 失败，显示错误
+        alert('加载书籍失败: ' + String(e));
         return;
     }
 
-    // 保存章节索引
-    const chapters = chapterList
-        .map(ch => ({ chapterId: ch.chapterId, title: ch.title }))
-        .sort((a, b) => parseInt(a.chapterId || '0') - parseInt(b.chapterId || '0'));
+    if (!chapters || chapters.length === 0) {
+        alert('此书无可读章节内容');
+        return;
+    }
 
     currentBook = { bookId, chapters };
     currentChapterIdx = 0;
-    await loadAndRenderChapter();
+    showChapter();
 }
 
 /**
- * 加载当前章节内容并渲染
+ * 显示当前章节
  */
-async function loadAndRenderChapter() {
+function showChapter() {
     if (!currentBook) return;
     showPage('reader-page');
 
-    const ch = currentBook.chapters[currentChapterIdx];
+    const chapter = currentBook.chapters[currentChapterIdx];
     const total = currentBook.chapters.length;
-    const title = ch.title || `第${currentChapterIdx + 1}章`;
+    const title = chapter.title || `第${currentChapterIdx + 1}章`;
+    const content = chapter.content || '（该章节内容为空）';
 
     // 更新标题和导航
     document.getElementById('reader-title').textContent = title;
@@ -425,62 +431,29 @@ async function loadAndRenderChapter() {
     document.getElementById('next-btn').disabled = currentChapterIdx >= total - 1;
     document.getElementById('reader-footer').textContent = `${currentChapterIdx + 1} / ${total} · 离线阅读`;
 
+    // 渲染内容
     const contentEl = document.getElementById('reader-content');
     contentEl.scrollTop = 0;
-    contentEl.innerHTML = `<div class="reader-chapter-title">${title}</div><p style="color:#888;">加载中...</p>`;
 
-    // 从文件系统加载章节内容
-    let content = '';
-    try {
-        const data = await tauriInvoke('get_cached_chapter', {
-            bookId: currentBook.bookId,
-            chapterId: ch.chapterId,
-        });
-        content = data.content || '';
-    } catch(e) {
-        contentEl.innerHTML = `
-            <div class="reader-chapter-title">${title}</div>
-            <p style="color:#e44;">❗ 加载失败: ${e}</p>
-            <p style="color:#888; font-size:12px;">bookId: ${currentBook.bookId}<br>chapterId: ${ch.chapterId}</p>
-        `;
-        return;
-    }
-
-    if (!content) {
-        contentEl.innerHTML = `
-            <div class="reader-chapter-title">${title}</div>
-            <p style="color:#888;">该章节无内容或未缓存</p>
-        `;
-        return;
-    }
-
-    // 渲染内容
     const paragraphs = content.split(/\n+/).filter(p => p.trim());
-    if (paragraphs.length > 0) {
-        contentEl.innerHTML = `
-            <div class="reader-chapter-title">${title}</div>
-            ${paragraphs.map(p => `<p style="text-indent:2em; margin-bottom:16px;">${escapeHtml(p.trim())}</p>`).join('')}
-        `;
-    } else {
-        contentEl.innerHTML = `
-            <div class="reader-chapter-title">${title}</div>
-            <p>${escapeHtml(content)}</p>
-        `;
-    }
+    contentEl.innerHTML = `
+        <div class="reader-chapter-title">${title}</div>
+        ${paragraphs.map(p => `<p style="text-indent:2em; margin-bottom:16px;">${escapeHtml(p.trim())}</p>`).join('')}
+    `;
 }
 
 // ==================== 章节导航 ====================
-async function prevChapter() {
+function prevChapter() {
     if (currentChapterIdx > 0) {
         currentChapterIdx--;
-        await loadAndRenderChapter();
+        showChapter();
     }
 }
 
-async function nextChapter() {
+function nextChapter() {
     if (currentBook && currentChapterIdx < currentBook.chapters.length - 1) {
         currentChapterIdx++;
-        await loadAndRenderChapter();
+        showChapter();
     }
 }
 
