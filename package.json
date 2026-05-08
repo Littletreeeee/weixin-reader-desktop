@@ -1,7 +1,7 @@
 {
-  "name": "weixin-reader",
-  "private": true,
+  "name": "yueadian",
   "version": "0.9.0",
+  "description": "阅典 - 优雅的阅读应用",
   "type": "module",
   "scripts": {
     "start": "bun run sync-version && tauri dev",
