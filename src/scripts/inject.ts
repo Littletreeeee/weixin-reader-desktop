@@ -12,6 +12,7 @@ import { getPluginLoader } from './core/plugin_loader';
 import { getPluginRegistry } from './core/plugin_registry';
 import { builtinPluginFactories } from '../plugins/builtin';
 import { listen } from '@tauri-apps/api/event';
+import { SecurityChecker } from './core/security_checker';
 
 // 旧适配器系统（向后兼容）
 import { getSiteRegistry } from './core/site_registry';
@@ -25,6 +26,8 @@ import { MenuManager } from './managers/menu_manager';
 import { ThemeManager } from './managers/theme_manager';
 import { StyleManager } from './managers/style_manager';
 import { RemoteManager } from './managers/remote_manager';
+import { KeyboardManager } from './managers/keyboard_manager';
+import { SessionManager } from './managers/session_manager';
 
 /**
  * 初始化旧适配器系统（向后兼容）
@@ -94,6 +97,12 @@ function initManagers(): void {
   safeInit('AppManager', () => new AppManager());
   safeInit('TurnerManager', () => new TurnerManager());
   safeInit('RemoteManager', () => new RemoteManager());
+  
+  // 新增: 会话恢复管理器（保存和恢复阅读位置）
+  safeInit('SessionManager', () => new SessionManager());
+  
+  // 新增: 快捷键管理器（添加快捷键支持）
+  safeInit('KeyboardManager', () => new KeyboardManager());
   
   // ThemeManager 仅在非阅读器页面初始化
   if (!isReader) {
@@ -184,6 +193,11 @@ async function main(): Promise<void> {
   log.info(`[Inject] User Agent: ${navigator.userAgent}`);
   
   try {
+    // 0. 执行安全性检查
+    log.info('[Inject] 执行安全性检查...');
+    SecurityChecker.performFullCheck();
+    SecurityChecker.interceptFetch();
+    
     // 1. 初始化设置存储
     await settingsStore.init();
     log.info('[Inject] Settings store initialized');
