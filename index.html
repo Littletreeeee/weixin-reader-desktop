@@ -3,168 +3,592 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>微信读书桌面版</title>
+    <title>微信读书阅读器</title>
     <style>
         :root {
-            --bg-color: #f5f5f5;
-            --text-color: #333333;
-            --accent-color: #4a90e2;
+            --bg: #f8f8fa;
+            --bg2: #ffffff;
+            --text: #2c2c2c;
+            --text2: #888;
+            --accent: #4a90e2;
+            --border: #e8e8e8;
+            --green: #4CAF50;
         }
-
         @media (prefers-color-scheme: dark) {
             :root {
-                --bg-color: #1a1a1a;
-                --text-color: #a1a1a1;
+                --bg: #1a1a1e;
+                --bg2: #2a2a2e;
+                --text: #e0e0e0;
+                --text2: #888;
+                --border: #3a3a3e;
             }
         }
-
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+            background: var(--bg);
+            color: var(--text);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif;
+            height: 100vh;
+            overflow: hidden;
+        }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+        /* ===== 连接状态页 ===== */
+        #connect-page {
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             height: 100vh;
-            margin: 0;
-            user-select: none;
-            overflow: hidden;
         }
-
-        .ascii-art {
-            white-space: pre;
-            font-size: 12px;
-            line-height: 1.2;
-            margin-bottom: 2rem;
-            color: var(--text-color);
-            opacity: 0.8;
-        }
-
-        .status {
-            margin-top: 1rem;
+        .connect-icon { font-size: 48px; margin-bottom: 16px; }
+        .connect-status { font-size: 15px; color: var(--text2); margin-bottom: 24px; }
+        .connect-btn {
+            padding: 10px 28px;
+            background: var(--accent);
+            color: white;
+            border: none;
+            border-radius: 8px;
             font-size: 14px;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .connect-btn:hover { opacity: 0.85; }
+        .connect-btn:active { opacity: 0.7; }
+        .connect-divider {
+            margin: 32px 0;
+            width: 200px;
+            border: none;
+            border-top: 1px solid var(--border);
+        }
+        .offline-hint {
+            font-size: 13px;
+            color: var(--text2);
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+        .offline-hint:hover { color: var(--accent); }
+
+        /* ===== 离线书架页 ===== */
+        #shelf-page { display: none; height: 100vh; flex-direction: column; }
+        .shelf-header {
+            padding: 20px 28px 16px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .shelf-title { font-size: 20px; font-weight: 700; }
+        .shelf-subtitle { font-size: 12px; color: var(--text2); margin-top: 2px; }
+        .shelf-actions { display: flex; gap: 12px; align-items: center; }
+        .shelf-badge {
+            background: var(--green);
+            color: white;
+            font-size: 11px;
+            padding: 3px 10px;
+            border-radius: 12px;
+        }
+        .shelf-online-btn {
+            padding: 6px 16px;
+            background: var(--accent);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+        .shelf-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px 28px;
+        }
+        .shelf-empty {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: var(--text2);
+        }
+        .shelf-empty-icon { font-size: 48px; margin-bottom: 12px; }
+        .book-card {
+            background: var(--bg2);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px 20px;
+            margin-bottom: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .book-card:hover { border-color: var(--accent); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.06); }
+        .book-info { flex: 1; }
+        .book-title { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+        .book-meta { font-size: 12px; color: var(--text2); }
+        .book-chapters { font-size: 11px; color: var(--green); margin-top: 4px; }
+        .book-arrow { color: var(--text2); font-size: 18px; }
+
+        /* ===== 阅读页 ===== */
+        #reader-page { display: none; height: 100vh; flex-direction: column; }
+        .reader-header {
+            padding: 14px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--bg2);
+        }
+        .reader-back {
+            background: none;
+            border: none;
+            color: var(--accent);
+            font-size: 14px;
+            cursor: pointer;
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 4px;
         }
-
-        .spinner {
-            width: 12px;
-            height: 12px;
-            border: 2px solid var(--text-color);
-            border-top-color: transparent;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            display: none;
-        }
-
-        .btn {
-            margin-top: 2rem;
-            padding: 8px 16px;
-            background: transparent;
-            border: 1px solid var(--text-color);
-            color: var(--text-color);
+        .reader-title-bar { font-size: 14px; font-weight: 600; text-align: center; flex: 1; }
+        .reader-chapter-nav { display: flex; gap: 8px; }
+        .reader-nav-btn {
+            background: none;
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 4px 12px;
+            border-radius: 6px;
             cursor: pointer;
-            border-radius: 4px;
-            font-family: inherit;
             font-size: 12px;
-            transition: all 0.2s;
-            opacity: 0; /* Initially hidden */
-            pointer-events: none;
         }
-
-        .btn:hover {
-            border-color: var(--accent-color);
-            color: var(--accent-color);
+        .reader-nav-btn:hover { border-color: var(--accent); color: var(--accent); }
+        .reader-nav-btn:disabled { opacity: 0.3; cursor: default; }
+        .reader-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 32px;
+            max-width: 720px;
+            margin: 0 auto;
+            width: 100%;
+            line-height: 1.9;
+            font-size: 17px;
         }
-
-        .btn.visible {
-            opacity: 1;
-            pointer-events: auto;
+        .reader-chapter-title {
+            font-size: 22px;
+            font-weight: 700;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border);
         }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
-        /* 隐藏滚动条 */
-        ::-webkit-scrollbar {
-            display: none;
+        .reader-footer {
+            padding: 10px 20px;
+            border-top: 1px solid var(--border);
+            text-align: center;
+            font-size: 11px;
+            color: var(--text2);
+            background: var(--bg2);
         }
     </style>
 </head>
 <body>
-    <div class="ascii-art">
-        .----.
-       /    /|
-      .----. |
-      | 读 | '
-      | 书 |/ 
-      '----'  
-   WEIXIN READER
+
+<!-- ===== 页面1：连接状态 ===== -->
+<div id="connect-page">
+    <div class="connect-icon">📚</div>
+    <div class="connect-status" id="connect-status">正在连接微信读书...</div>
+    <button class="connect-btn" id="connect-btn" onclick="tryConnect()">重新连接</button>
+    <hr class="connect-divider">
+    <div class="offline-hint" id="offline-hint" onclick="showShelf()">
+        📖 查看离线缓存书籍 →
     </div>
+</div>
 
-    <div class="status">
-        <div class="spinner" id="spinner"></div>
-        <span id="status-text">正在连接图书馆...</span>
+<!-- ===== 页面2：离线书架 ===== -->
+<div id="shelf-page">
+    <div class="shelf-header">
+        <div>
+            <div class="shelf-title">📖 离线书架</div>
+            <div class="shelf-subtitle" id="shelf-stats">加载中...</div>
+        </div>
+        <div class="shelf-actions">
+            <span class="shelf-badge">离线模式</span>
+            <button class="shelf-online-btn" onclick="tryConnect()">🔄 连接网络</button>
+        </div>
     </div>
+    <div class="shelf-list" id="shelf-list"></div>
+</div>
 
-    <button class="btn" id="retry-btn">重新连接</button>
+<!-- ===== 页面3：阅读页 ===== -->
+<div id="reader-page">
+    <div class="reader-header">
+        <button class="reader-back" onclick="showShelf()">← 返回</button>
+        <div class="reader-title-bar" id="reader-title">阅读中</div>
+        <div class="reader-chapter-nav">
+            <button class="reader-nav-btn" id="prev-btn" onclick="prevChapter()">上一章</button>
+            <button class="reader-nav-btn" id="next-btn" onclick="nextChapter()">下一章</button>
+        </div>
+    </div>
+    <div class="reader-content" id="reader-content"></div>
+    <div class="reader-footer" id="reader-footer">离线阅读模式</div>
+</div>
 
-    <script>
-        const TARGET_URL = 'https://weread.qq.com';
-        const spinner = document.getElementById('spinner');
-        const statusText = document.getElementById('status-text');
-        const retryBtn = document.getElementById('retry-btn');
+<script>
+// ==================== 全局状态 ====================
+const DB_NAME = 'weread-cache';
+const DB_VERSION = 1;
+const STORE_NAME = 'books';
+const TARGET_URL = 'https://weread.qq.com';
 
-        function updateStatus(msg, loading = false, showRetry = false) {
-            statusText.textContent = msg;
-            spinner.style.display = loading ? 'block' : 'none';
-            if (showRetry) {
-                retryBtn.classList.add('visible');
-            } else {
-                retryBtn.classList.remove('visible');
+let db = null;
+let currentBook = null;  // { bookId, chapters: [...] }
+let currentChapterIdx = 0;
+
+// ==================== 初始化 ====================
+async function init() {
+    // 打开IndexedDB
+    try {
+        db = await openDB();
+    } catch(e) {
+        console.warn('IndexedDB不可用:', e);
+    }
+
+    // 检测网络
+    if (navigator.onLine) {
+        tryConnect();
+    } else {
+        showConnectPage('网络未连接');
+        updateOfflineHint();
+    }
+
+    // 监听网络变化
+    window.addEventListener('online', () => {
+        tryConnect();
+    });
+    window.addEventListener('offline', () => {
+        showConnectPage('网络已断开');
+    });
+
+    // 快捷键
+    document.addEventListener('keydown', handleKeydown);
+}
+
+// ==================== IndexedDB ====================
+function openDB() {
+    return new Promise((resolve, reject) => {
+        const req = indexedDB.open(DB_NAME, DB_VERSION);
+        req.onerror = () => reject(req.error);
+        req.onsuccess = () => resolve(req.result);
+        req.onupgradeneeded = (e) => {
+            const database = e.target.result;
+            if (!database.objectStoreNames.contains(STORE_NAME)) {
+                const store = database.createObjectStore(STORE_NAME, { keyPath: 'url' });
+                store.createIndex('timestamp', 'timestamp', { unique: false });
+                store.createIndex('bookId', 'bookId', { unique: false });
             }
+        };
+    });
+}
+
+function getAllCachedEntries() {
+    return new Promise((resolve, reject) => {
+        if (!db) { resolve([]); return; }
+        const tx = db.transaction([STORE_NAME], 'readonly');
+        const store = tx.objectStore(STORE_NAME);
+        const req = store.getAll();
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => reject(req.error);
+    });
+}
+
+// ==================== 页面切换 ====================
+function showPage(pageId) {
+    document.getElementById('connect-page').style.display = 'none';
+    document.getElementById('shelf-page').style.display = 'none';
+    document.getElementById('reader-page').style.display = 'none';
+    document.getElementById(pageId).style.display = 'flex';
+}
+
+function showConnectPage(msg) {
+    showPage('connect-page');
+    document.getElementById('connect-status').textContent = msg || '正在连接微信读书...';
+    updateOfflineHint();
+}
+
+// ==================== 连接 ====================
+function tryConnect() {
+    document.getElementById('connect-status').textContent = '正在连接微信读书...';
+    document.getElementById('connect-btn').disabled = true;
+
+    if (!navigator.onLine) {
+        showConnectPage('网络未连接');
+        document.getElementById('connect-btn').disabled = false;
+        return;
+    }
+
+    // 尝试连接
+    fetch(TARGET_URL, { mode: 'no-cors' })
+        .then(() => { window.location.href = TARGET_URL; })
+        .catch(() => { window.location.href = TARGET_URL; });
+
+    setTimeout(() => {
+        document.getElementById('connect-btn').disabled = false;
+    }, 3000);
+}
+
+// ==================== 离线提示 ====================
+async function updateOfflineHint() {
+    try {
+        const entries = await getAllCachedEntries();
+        const books = groupByBook(entries);
+        const count = Object.keys(books).length;
+        if (count > 0) {
+            document.getElementById('offline-hint').textContent =
+                `📖 查看离线缓存书籍 (${count}本) →`;
+            document.getElementById('offline-hint').style.display = 'block';
+        } else {
+            document.getElementById('offline-hint').textContent =
+                '暂无缓存书籍，请在有网时打开书籍并按 Cmd+S 缓存';
         }
+    } catch(e) {
+        console.warn('检查缓存失败:', e);
+    }
+}
 
-        function checkConnectionAndRedirect() {
-            if (!navigator.onLine) {
-                updateStatus('网络连接已断开', false, true);
-                return;
-            }
+// ==================== 离线书架 ====================
+async function showShelf() {
+    showPage('shelf-page');
 
-            updateStatus('正在连接图书馆...', true, false);
+    const entries = await getAllCachedEntries();
+    const books = groupByBook(entries);
+    const bookIds = Object.keys(books);
 
-            // 尝试 fetch 以确保真的能连上（处理有网但无法访问的情况）
-            fetch(TARGET_URL, { mode: 'no-cors' })
-                .then(() => {
-                    window.location.href = TARGET_URL;
-                })
-                .catch(() => {
-                    // 如果 fetch 失败（可能是跨域或其他网络错误），但在桌面端环境下通常意味着无法访问
-                    // 这里我们简单地重试几次或者直接显示错误
-                    // 由于 no-cors 模式下我们拿不到状态码，只要不报错就算通
-                    // 如果真的报错，说明网络完全不通
-                     window.location.href = TARGET_URL;
-                });
-            
-            // 设置一个超时，如果 5秒 还没跳转，可能是有问题
-            setTimeout(() => {
-                if (window.location.href !== TARGET_URL) {
-                     // 强制跳转一次试试
-                     window.location.href = TARGET_URL;
-                }
-            }, 2000);
+    // 更新统计
+    const totalSize = entries.reduce((s, e) => s + (e.size || 0), 0);
+    document.getElementById('shelf-stats').textContent =
+        `${bookIds.length} 本书 · ${entries.length} 个缓存项 · ${(totalSize / 1024 / 1024).toFixed(1)}MB`;
+
+    const listEl = document.getElementById('shelf-list');
+
+    if (bookIds.length === 0) {
+        listEl.innerHTML = `
+            <div class="shelf-empty">
+                <div class="shelf-empty-icon">📭</div>
+                <div>暂无缓存书籍</div>
+                <div style="margin-top:8px; font-size:13px;">
+                    连接网络后，打开一本书并按 <b>Cmd+S</b> 即可缓存整本书
+                </div>
+            </div>
+        `;
+        return;
+    }
+
+    listEl.innerHTML = '';
+    for (const bookId of bookIds) {
+        const bookEntries = books[bookId];
+        const chapters = bookEntries.filter(e => e.title);
+        const size = bookEntries.reduce((s, e) => s + (e.size || 0), 0);
+        const lastRead = Math.max(...bookEntries.map(e => e.timestamp || 0));
+
+        // 尝试从缓存条目中提取书名
+        const firstTitle = chapters[0]?.title || '未知章节';
+        const bookName = extractBookName(bookEntries) || `书籍 ${bookId.slice(0, 8)}`;
+
+        const card = document.createElement('div');
+        card.className = 'book-card';
+        card.onclick = () => openBook(bookId, bookEntries);
+        card.innerHTML = `
+            <div class="book-info">
+                <div class="book-title">${bookName}</div>
+                <div class="book-meta">${(size / 1024 / 1024).toFixed(1)}MB · 缓存于 ${formatTime(lastRead)}</div>
+                <div class="book-chapters">📖 ${chapters.length} 章已缓存</div>
+            </div>
+            <div class="book-arrow">›</div>
+        `;
+        listEl.appendChild(card);
+    }
+}
+
+// ==================== 打开书籍 ====================
+function openBook(bookId, entries) {
+    // 按章节排序
+    const chapters = entries
+        .filter(e => e.content)
+        .sort((a, b) => {
+            const idxA = parseInt(a.chapterId || '0');
+            const idxB = parseInt(b.chapterId || '0');
+            return idxA - idxB;
+        });
+
+    if (chapters.length === 0) {
+        alert('此书无可读内容');
+        return;
+    }
+
+    currentBook = { bookId, chapters };
+    currentChapterIdx = 0;
+    renderChapter();
+}
+
+// ==================== 渲染章节 ====================
+function renderChapter() {
+    if (!currentBook) return;
+
+    showPage('reader-page');
+
+    const chapter = currentBook.chapters[currentChapterIdx];
+    const total = currentBook.chapters.length;
+
+    // 标题栏
+    const title = chapter.title || `第${currentChapterIdx + 1}章`;
+    document.getElementById('reader-title').textContent = title;
+
+    // 渲染内容
+    const contentEl = document.getElementById('reader-content');
+    contentEl.scrollTop = 0;
+
+    let content = chapter.content || '';
+
+    // 尝试解析JSON格式的API响应
+    try {
+        const json = JSON.parse(content);
+        content = extractReadableContent(json);
+    } catch(e) {
+        // 不是JSON，可能是HTML
+    }
+
+    // 如果是HTML，直接渲染；否则按段落渲染
+    if (content.includes('<') && content.includes('>')) {
+        contentEl.innerHTML = `
+            <div class="reader-chapter-title">${title}</div>
+            ${content}
+        `;
+    } else {
+        // 纯文本，按段落分割
+        const paragraphs = content.split(/\n+/).filter(p => p.trim());
+        contentEl.innerHTML = `
+            <div class="reader-chapter-title">${title}</div>
+            ${paragraphs.map(p => `<p style="text-indent:2em; margin-bottom:16px;">${escapeHtml(p.trim())}</p>`).join('')}
+        `;
+    }
+
+    // 导航按钮状态
+    document.getElementById('prev-btn').disabled = currentChapterIdx <= 0;
+    document.getElementById('next-btn').disabled = currentChapterIdx >= total - 1;
+
+    // 底部信息
+    document.getElementById('reader-footer').textContent =
+        `${currentChapterIdx + 1} / ${total} · 离线阅读`;
+}
+
+// ==================== 章节导航 ====================
+function prevChapter() {
+    if (currentChapterIdx > 0) {
+        currentChapterIdx--;
+        renderChapter();
+    }
+}
+
+function nextChapter() {
+    if (currentBook && currentChapterIdx < currentBook.chapters.length - 1) {
+        currentChapterIdx++;
+        renderChapter();
+    }
+}
+
+// ==================== 快捷键 ====================
+function handleKeydown(e) {
+    // 阅读页快捷键
+    if (document.getElementById('reader-page').style.display === 'flex') {
+        if (e.key === 'ArrowLeft') { prevChapter(); e.preventDefault(); }
+        if (e.key === 'ArrowRight') { nextChapter(); e.preventDefault(); }
+        if (e.key === ' ' && !e.shiftKey) { scrollDown(); e.preventDefault(); }
+        if (e.key === ' ' && e.shiftKey) { scrollUp(); e.preventDefault(); }
+        if (e.key === 'Escape' || e.key.toLowerCase() === 'b') { showShelf(); e.preventDefault(); }
+    }
+}
+
+function scrollDown() {
+    const el = document.getElementById('reader-content');
+    el.scrollBy({ top: window.innerHeight * 0.8, behavior: 'smooth' });
+}
+
+function scrollUp() {
+    const el = document.getElementById('reader-content');
+    el.scrollBy({ top: -window.innerHeight * 0.8, behavior: 'smooth' });
+}
+
+// ==================== 工具函数 ====================
+function groupByBook(entries) {
+    const groups = {};
+    for (const entry of entries) {
+        const bookId = entry.bookId || 'unknown';
+        if (!groups[bookId]) groups[bookId] = [];
+        groups[bookId].push(entry);
+    }
+    return groups;
+}
+
+function extractBookName(entries) {
+    // 尝试从URL中提取书籍信息
+    for (const e of entries) {
+        if (e.url && e.url.includes('/web/reader/')) {
+            const match = e.url.match(/\/web\/reader\/([^/]+)/);
+            if (match) return `书籍 ${match[1].slice(0, 10)}...`;
         }
+        // 从content中尝试提取书名
+        if (e.content) {
+            try {
+                const json = JSON.parse(e.content);
+                if (json.bookInfo?.title) return json.bookInfo.title;
+                if (json.data?.bookInfo?.title) return json.data.bookInfo.title;
+                if (json.title) return json.title;
+            } catch(ex) {}
+        }
+    }
+    return null;
+}
 
-        window.addEventListener('online', checkConnectionAndRedirect);
-        window.addEventListener('offline', () => updateStatus('网络已断开', false, true));
+function extractReadableContent(json) {
+    // 微信读书API的多种响应格式
+    // 格式1: { data: { chapterContent: "..." } }
+    if (json?.data?.chapterContent) return json.data.chapterContent;
+    // 格式2: { chapterContent: "..." }
+    if (json?.chapterContent) return json.chapterContent;
+    // 格式3: { htmlContent: "..." }
+    if (json?.htmlContent) return json.htmlContent;
+    if (json?.data?.htmlContent) return json.data.htmlContent;
+    // 格式4: { content: "..." }
+    if (json?.content) return json.content;
+    if (json?.data?.content) return json.data.content;
+    // 格式5: { text: "..." }
+    if (json?.text) return json.text;
+    // 兜底：格式化显示JSON
+    return JSON.stringify(json, null, 2);
+}
 
-        retryBtn.addEventListener('click', checkConnectionAndRedirect);
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
 
-        // Init
-        checkConnectionAndRedirect();
-    </script>
+function formatTime(ts) {
+    if (!ts) return '未知';
+    const d = new Date(ts);
+    const now = new Date();
+    const diff = now - d;
+
+    if (diff < 60000) return '刚刚';
+    if (diff < 3600000) return `${Math.floor(diff/60000)}分钟前`;
+    if (diff < 86400000) return `${Math.floor(diff/3600000)}小时前`;
+    if (diff < 604800000) return `${Math.floor(diff/86400000)}天前`;
+
+    return `${d.getMonth()+1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+
+// ==================== 启动 ====================
+init();
+</script>
 </body>
 </html>
