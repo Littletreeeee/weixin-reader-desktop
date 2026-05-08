@@ -12,6 +12,7 @@
 import { log } from '../core/logger';
 import { chapterManager, ChapterData } from '../core/chapter_manager';
 import { CacheManager } from './cache_manager';
+import { invoke } from '@tauri-apps/api/core';
 
 export class BookCacher {
   private cacheManager: CacheManager;
@@ -131,6 +132,18 @@ export class BookCacher {
             chapterId: String(idx),
             title: title || `第${idx}章`,
           });
+
+          // 同时保存到本地文件系统（离线页面可读取）
+          try {
+            await invoke('save_book_cache', {
+              bookId,
+              chapterId: String(idx),
+              title: title || `第${idx}章`,
+              content: text,
+            });
+          } catch (e) {
+            log.warn(`[BookCacher] 文件系统缓存失败: ${title}`, e);
+          }
 
           success++;
         } else {

@@ -611,3 +611,146 @@ pub async fn install_plugin_from_editor(
     println!("[PluginEditor] Plugin installed: {} v{}", info.id, info.version);
     Ok(info)
 }
+
+// ==================== 书籍缓存命令 ====================
+
+/// 保存书籍缓存到本地文件系统
+#[tauri::command]
+pub fn save_book_cache(app: AppHandle, book_id: String, chapter_id: String, title: String, content: String) -> Result<(), String> {
+    let cache_dir = app.path().app_config_dir()
+        .map_err(|e| e.to_string())?
+        .join("book_cache")
+        .join(&book_id);
+    
+    std::fs::create_dir_all(&cache_dir)
+        .map_err(|e| format!("Failed to create cache dir: {}", e))?;
+    
+    // 保存章节内容
+    let chapter_file = cache_dir.join(format!("{}.json", chapter_id));
+    let chapter_data = serde_json::json!({
+        "bookId": book_id,
+        "chapterId": chapter_id,
+        "title": title,
+        "content": content,
+        "timestamp": chrono::Utc::now().timestamp_millis()
+    });
+    
+    let data_str = serde_json::to_string(&chapter_data)
+        .map_err(|e| format!("Failed to serialize: {}", e))?;
+    
+    std::fs::write(&chapter_file, data_str)
+        .map_err(|e| format!("Failed to write cache: {}", e))?;
+    
+    // 更新书籍索引
+    update_book_index(&cache_dir, &book_id, &chapter_id, &title)?;
+    
+    Ok(())
+}
+
+/// 更新书籍索引文件
+fn update_book_index(cache_dir: &std::path::Path, book_id: &str, chapter_id: &str, title: &str) -> Result<(), String> {
+    let index_file = cache_dir.join("_index.json");
+    
+    let mut index: serde_json::Value = if index_file.exists() {
+        let content = std::fs::read_to_string(&index_file)
+            .map_err(|e| format!("Failed to read index: {}", e))?;
+        serde_json::from_str(&content).unwrap_or(serde_json::json!({"bookId": book_id, "chapters": []}))
+    } else {
+        serde_json::json!({"bookId": book_id, "chapters": []})
+    };
+    
+    // 添加或更新章节
+    if let Some(chapters) = index.get_mut("chapters").and_then(|c| c.as_array_mut()) {
+        // 检查是否已存在
+        let exists = chapters.iter().any(|ch| {
+            ch.get("chapterId").and_then(|c| c.as_str()) == Some(chapter_id)
+        });
+        
+        if !exists {
+            chapters.push(serde_json::json!({
+                "chapterId": chapter_id,
+                "title": title,
+                "timestamp": chrono::Utc::now().timestamp_millis()
+            }));
+        }
+    }
+    
+    // 更新时间戳
+    index["lastUpdated"] = serde_json::json!(chrono::Utc::now().timestamp_millis());
+    
+    let data_str = serde_json::to_string_pretty(&index)
+        .map_err(|e| format!("Failed to serialize index: {}", e))?;
+    
+    std::fs::write(&index_file, data_str)
+        .map_err(|e| format!("Failed to write index: {}", e))?;
+    
+    Ok(())
+}
+
+/// 获取所有缓存书籍列表
+#[tauri::command]
+pub fn get_cached_books(app: AppHandle) -> Result<Vec<serde_json::Value>, String> {
+    let cache_dir = app.path().app_config_dir()
+        .map_err(|e| e.to_string())?
+        .join("book_cache");
+    
+    if !cache_dir.exists() {
+        return Ok(vec![]);
+    }
+    
+    let mut books = Vec::new();
+    
+    if let Ok(entries) = std::fs::read_dir(&cache_dir) {
+        for entry in entries.flatten() {
+            if entry.path().is_dir() {
+                let index_file = entry.path().join("_index.json");
+                if index_file.exists() {
+                    if let Ok(content) = std::fs::read_to_string(&index_file) {
+                        if let Ok(index) = serde_json::from_str::<serde_json::Value>(&content) {
+                            // 计算缓存大小
+                            let dir_size = calculate_dir_size(&entry.path());
+                            let mut book_info = index.clone();
+                            book_info["size"] = serde_json::json!(dir_size);
+                            books.push(book_info);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    Ok(books)
+}
+
+/// 获取缓存的章节内容
+#[tauri::command]
+pub fn get_cached_chapter(app: AppHandle, book_id: String, chapter_id: String) -> Result<serde_json::Value, String> {
+    let chapter_file = app.path().app_config_dir()
+        .map_err(|e| e.to_string())?
+        .join("book_cache")
+        .join(&book_id)
+        .join(format!("{}.json", chapter_id));
+    
+    if !chapter_file.exists() {
+        return Err("Chapter not found".to_string());
+    }
+    
+    let content = std::fs::read_to_string(&chapter_file)
+        .map_err(|e| format!("Failed to read chapter: {}", e))?;
+    
+    serde_json::from_str(&content)
+        .map_err(|e| format!("Failed to parse chapter: {}", e))
+}
+
+/// 计算目录大小
+fn calculate_dir_size(path: &std::path::Path) -> u64 {
+    let mut size = 0;
+    if let Ok(entries) = std::fs::read_dir(path) {
+        for entry in entries.flatten() {
+            if let Ok(metadata) = entry.metadata() {
+                size += metadata.len();
+            }
+        }
+    }
+    size
+}

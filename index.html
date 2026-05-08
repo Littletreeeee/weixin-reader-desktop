@@ -235,24 +235,20 @@
 
 <script>
 // ==================== 全局状态 ====================
-const DB_NAME = 'weread-cache';
-const DB_VERSION = 1;
-const STORE_NAME = 'books';
 const TARGET_URL = 'https://weread.qq.com';
-
-let db = null;
 let currentBook = null;  // { bookId, chapters: [...] }
 let currentChapterIdx = 0;
 
+// Tauri invoke
+async function tauriInvoke(cmd, args) {
+    if (window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke) {
+        return window.__TAURI__.core.invoke(cmd, args);
+    }
+    throw new Error('Tauri API 不可用');
+}
+
 // ==================== 初始化 ====================
 async function init() {
-    // 打开IndexedDB
-    try {
-        db = await openDB();
-    } catch(e) {
-        console.warn('IndexedDB不可用:', e);
-    }
-
     // 检测网络
     if (navigator.onLine) {
         tryConnect();
@@ -262,42 +258,12 @@ async function init() {
     }
 
     // 监听网络变化
-    window.addEventListener('online', () => {
-        tryConnect();
-    });
-    window.addEventListener('offline', () => {
-        showConnectPage('网络已断开');
-    });
+    window.addEventListener('online', () => { tryConnect(); });
+    window.addEventListener('offline', () => { showConnectPage('网络已断开'); });
 
     // 快捷键
     document.addEventListener('keydown', handleKeydown);
 }
-
-// ==================== IndexedDB ====================
-function openDB() {
-    return new Promise((resolve, reject) => {
-        const req = indexedDB.open(DB_NAME, DB_VERSION);
-        req.onerror = () => reject(req.error);
-        req.onsuccess = () => resolve(req.result);
-        req.onupgradeneeded = (e) => {
-            const database = e.target.result;
-            if (!database.objectStoreNames.contains(STORE_NAME)) {
-                const store = database.createObjectStore(STORE_NAME, { keyPath: 'url' });
-                store.createIndex('timestamp', 'timestamp', { unique: false });
-                store.createIndex('bookId', 'bookId', { unique: false });
-            }
-        };
-    });
-}
-
-function getAllCachedEntries() {
-    return new Promise((resolve, reject) => {
-        if (!db) { resolve([]); return; }
-        const tx = db.transaction([STORE_NAME], 'readonly');
-        const store = tx.objectStore(STORE_NAME);
-        const req = store.getAll();
-        req.onsuccess = () => resolve(req.result || []);
-        req.onerror = () => reject(req.error);
     });
 }
 
@@ -339,9 +305,8 @@ function tryConnect() {
 // ==================== 离线提示 ====================
 async function updateOfflineHint() {
     try {
-        const entries = await getAllCachedEntries();
-        const books = groupByBook(entries);
-        const count = Object.keys(books).length;
+        const books = await tauriInvoke('get_cached_books', {});
+        const count = books.length;
         if (count > 0) {
             document.getElementById('offline-hint').textContent =
                 `📖 查看离线缓存书籍 (${count}本) →`;
@@ -352,6 +317,8 @@ async function updateOfflineHint() {
         }
     } catch(e) {
         console.warn('检查缓存失败:', e);
+        document.getElementById('offline-hint').textContent =
+            '暂无缓存书籍，请在有网时打开书籍并按 Cmd+S 缓存';
     }
 }
 
@@ -359,18 +326,22 @@ async function updateOfflineHint() {
 async function showShelf() {
     showPage('shelf-page');
 
-    const entries = await getAllCachedEntries();
-    const books = groupByBook(entries);
-    const bookIds = Object.keys(books);
+    let books = [];
+    try {
+        books = await tauriInvoke('get_cached_books', {});
+    } catch(e) {
+        console.warn('获取缓存书籍失败:', e);
+    }
 
     // 更新统计
-    const totalSize = entries.reduce((s, e) => s + (e.size || 0), 0);
+    const totalSize = books.reduce((s, b) => s + (b.size || 0), 0);
+    const totalChapters = books.reduce((s, b) => s + (b.chapters?.length || 0), 0);
     document.getElementById('shelf-stats').textContent =
-        `${bookIds.length} 本书 · ${entries.length} 个缓存项 · ${(totalSize / 1024 / 1024).toFixed(1)}MB`;
+        `${books.length} 本书 · ${totalChapters} 章 · ${(totalSize / 1024 / 1024).toFixed(1)}MB`;
 
     const listEl = document.getElementById('shelf-list');
 
-    if (bookIds.length === 0) {
+    if (books.length === 0) {
         listEl.innerHTML = `
             <div class="shelf-empty">
                 <div class="shelf-empty-icon">📭</div>
@@ -384,23 +355,20 @@ async function showShelf() {
     }
 
     listEl.innerHTML = '';
-    for (const bookId of bookIds) {
-        const bookEntries = books[bookId];
-        const chapters = bookEntries.filter(e => e.title);
-        const size = bookEntries.reduce((s, e) => s + (e.size || 0), 0);
-        const lastRead = Math.max(...bookEntries.map(e => e.timestamp || 0));
-
-        // 尝试从缓存条目中提取书名
-        const firstTitle = chapters[0]?.title || '未知章节';
-        const bookName = extractBookName(bookEntries) || `书籍 ${bookId.slice(0, 8)}`;
+    for (const book of books) {
+        const bookId = book.bookId || 'unknown';
+        const chapters = book.chapters || [];
+        const size = book.size || 0;
+        const lastUpdated = book.lastUpdated || 0;
+        const firstChapterTitle = chapters[0]?.title || '未知章节';
 
         const card = document.createElement('div');
         card.className = 'book-card';
-        card.onclick = () => openBook(bookId, bookEntries);
+        card.onclick = () => openBook(bookId, chapters);
         card.innerHTML = `
             <div class="book-info">
-                <div class="book-title">${bookName}</div>
-                <div class="book-meta">${(size / 1024 / 1024).toFixed(1)}MB · 缓存于 ${formatTime(lastRead)}</div>
+                <div class="book-title">📚 ${firstChapterTitle.split(' ')[0] || bookId.slice(0, 12)}</div>
+                <div class="book-meta">${(size / 1024 / 1024).toFixed(1)}MB · 缓存于 ${formatTime(lastUpdated)}</div>
                 <div class="book-chapters">📖 ${chapters.length} 章已缓存</div>
             </div>
             <div class="book-arrow">›</div>
@@ -410,20 +378,28 @@ async function showShelf() {
 }
 
 // ==================== 打开书籍 ====================
-function openBook(bookId, entries) {
-    // 按章节排序
-    const chapters = entries
-        .filter(e => e.content)
-        .sort((a, b) => {
-            const idxA = parseInt(a.chapterId || '0');
-            const idxB = parseInt(b.chapterId || '0');
-            return idxA - idxB;
-        });
+async function openBook(bookId, chapterList) {
+    // chapterList 是索引中的章节信息，需要加载实际内容
+    const chapters = [];
+    for (const ch of chapterList) {
+        try {
+            const data = await tauriInvoke('get_cached_chapter', {
+                bookId,
+                chapterId: ch.chapterId,
+            });
+            chapters.push(data);
+        } catch(e) {
+            console.warn(`加载章节失败: ${ch.title}`, e);
+        }
+    }
 
     if (chapters.length === 0) {
         alert('此书无可读内容');
         return;
     }
+
+    // 按 chapterId 排序
+    chapters.sort((a, b) => parseInt(a.chapterId || '0') - parseInt(b.chapterId || '0'));
 
     currentBook = { bookId, chapters };
     currentChapterIdx = 0;
