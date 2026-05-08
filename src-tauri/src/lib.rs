@@ -297,10 +297,6 @@ pub fn run() {
             commands::save_plugin,
             commands::save_plugin_dialog,
             commands::install_plugin_from_editor,
-            commands::save_book_cache,
-            commands::get_cached_books,
-            commands::get_cached_chapter,
-            commands::get_all_chapters,
             update::check_update_manual,
             update::install_update_now,
             update::is_update_downloaded

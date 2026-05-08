@@ -28,9 +28,6 @@ import { StyleManager } from './managers/style_manager';
 import { RemoteManager } from './managers/remote_manager';
 import { KeyboardManager } from './managers/keyboard_manager';
 import { SessionManager } from './managers/session_manager';
-import { CacheManager } from './managers/cache_manager';
-import { CacheInterceptor } from './core/cache_interceptor';
-import { BookCacher } from './managers/book_cacher';
 
 /**
  * 初始化旧适配器系统（向后兼容）
@@ -201,16 +198,7 @@ async function main(): Promise<void> {
     SecurityChecker.performFullCheck();
     SecurityChecker.interceptFetch();
     
-    // 0.5. 启用书籍缓存系统
-    log.info('[Inject] 启用书籍缓存系统（离线阅读支持）...');
-    const cacheInterceptor = new CacheInterceptor();
-    const cacheStats = await CacheManager.getInstance().getCacheStats();
-    log.info(`[Inject] 缓存系统已启用 - 当前缓存: ${(cacheStats.totalSize / 1024 / 1024).toFixed(2)}MB (${cacheStats.entryCount} 项)`);
-    log.info(`[Inject] 网络状态: ${cacheStats.isOnline ? '在线' : '离线'}`);
     
-    // 0.6. 初始化一键缓存功能
-    const bookCacher = new BookCacher();
-    log.info('[Inject] 一键缓存功能已启用 (Cmd+S 缓存整本书)');
     // 1. 初始化设置存储
     await settingsStore.init();
     log.info('[Inject] Settings store initialized');
