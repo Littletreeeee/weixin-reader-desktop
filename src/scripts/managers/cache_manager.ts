@@ -321,23 +321,49 @@ class CacheManager {
   }
 
   /**
-   * 预缓存书籍（可选）
+   * 预缓存整本书籍
+   * 用户可以在线时提前下载整本书到本地
    */
-  async preCacheBook(bookId: string, urls: string[]): Promise<void> {
-    console.log(`[CacheManager] 开始预缓存书籍 ${bookId}，共 ${urls.length} 个资源`);
+  async preCacheEntireBook(bookId: string, chapterUrls: string[]): Promise<{
+    success: number;
+    failed: number;
+    totalSize: number;
+  }> {
+    console.log(`[CacheManager] 开始预缓存整本书 ${bookId}，共 ${chapterUrls.length} 章`);
+    
+    let success = 0;
+    let failed = 0;
+    let totalSize = 0;
 
-    for (const url of urls) {
+    for (const url of chapterUrls) {
       try {
         const response = await fetch(url);
         if (response.ok) {
+          const size = new Blob([await response.clone().text()]).size;
+          totalSize += size;
           await this.cacheResponse(url, response, { bookId });
+          success++;
+          console.log(`[CacheManager] ✅ 已缓存: ${url} (${(size / 1024).toFixed(2)}KB)`);
+        } else {
+          failed++;
         }
       } catch (error) {
-        console.warn(`[CacheManager] 预缓存失败: ${url}`, error);
+        failed++;
+        console.warn(`[CacheManager] ❌ 缓存失败: ${url}`, error);
       }
     }
 
-    console.log(`[CacheManager] 书籍 ${bookId} 预缓存完成`);
+    const stats = {
+      success,
+      failed,
+      totalSize,
+    };
+
+    console.log(
+      `[CacheManager] 预缓存完成: ${success}/${chapterUrls.length} 成功，总大小 ${(totalSize / 1024 / 1024).toFixed(2)}MB`
+    );
+
+    return stats;
   }
 }
 

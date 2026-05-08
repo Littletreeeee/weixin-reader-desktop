@@ -256,3 +256,87 @@ const toDelete = Math.ceil(allEntries.length * 0.3); // 改为删除 30%
 ---
 
 **功能完全自动化，无需用户干预！** 📚
+
+---
+
+## 📥 预缓存整本书（新增功能）
+
+如果你想经常离线阅读某本书，可以提前预缓存整本书到本地。
+
+### 使用步骤
+
+1. **打开微信读书，找到要预缓存的书籍**
+2. **打开浏览器控制台 (F12)**
+3. **运行预缓存命令**：
+
+```javascript
+// 方式1: 如果书籍已经打开过，可以从页面URL提取章节
+// 先查看一下目前有哪些缓存
+const stats = await CacheManager.getInstance().getCacheStats();
+console.log(`当前已缓存: ${stats.entryCount} 项, ${(stats.totalSize / 1024 / 1024).toFixed(2)}MB`);
+
+// 方式2: 主动预缓存一本书的所有章节
+// 需要提供这本书的所有章节URL列表
+const chapterUrls = [
+  'https://weread.qq.com/api/reader/chapterInfos?...',  // 替换成真实的章节API
+  // ... 更多章节
+];
+
+const result = await CacheManager.getInstance()
+  .preCacheEntireBook('book_123', chapterUrls);
+
+console.log(`✅ 预缓存完成:`);
+console.log(`   成功: ${result.success} 章`);
+console.log(`   失败: ${result.failed} 章`);
+console.log(`   总大小: ${(result.totalSize / 1024 / 1024).toFixed(2)}MB`);
+```
+
+### 预缓存后的效果
+
+- ✅ **完全离线可用** - 所有章节都在本地
+- ✅ **无需网络** - 飞行模式/没有网络也能读
+- ✅ **快速加载** - 直接从本地IndexedDB读取
+- ✅ **自动保留** - 跨浏览器会话保留
+
+### 实际示例
+
+```javascript
+// 假设你要预缓存一本有20章的书
+// 先在微信读书打开这本书，查看API请求
+
+// 然后在控制台执行:
+const chapters = Array.from({length: 20}, (_, i) => 
+  `https://weread.qq.com/api/reader/chapterInfos?bookId=123&chapterIndex=${i}`
+);
+
+const result = await CacheManager.getInstance()
+  .preCacheEntireBook('mybook', chapters);
+
+// 输出类似:
+// ✅ 预缓存完成: 20/20 成功，总大小 45.67MB
+```
+
+### 常见问题
+
+**Q: 预缓存需要多长时间？**
+A: 取决于书籍大小和网络速度，一般1-5分钟
+
+**Q: 预缓存的书占多少空间？**
+A: 一般一本书5-50MB，100MB容量可放2-20本书
+
+**Q: 可以预缓存多本书吗？**
+A: 可以，只要总大小不超过100MB
+
+**Q: 预缓存失败了怎么办？**
+A: 返回的`failed`字段会显示失败数量，可重新运行
+
+**Q: 怎么清除预缓存的书？**
+A: 
+```javascript
+// 清除特定书籍
+await CacheManager.getInstance().clearBookCache('mybook');
+
+// 清除所有缓存
+await CacheManager.getInstance().clearAllCache();
+```
+
