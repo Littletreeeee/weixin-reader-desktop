@@ -1,7 +1,7 @@
 {
-  "name": "yueadian",
+  "name": "weixin-reader",
   "version": "0.9.0",
-  "description": "阅典 - 优雅的阅读应用",
+  "description": "微信读书阻读器 - Ben's Custom Edition",
   "type": "module",
   "scripts": {
     "start": "bun run sync-version && tauri dev",

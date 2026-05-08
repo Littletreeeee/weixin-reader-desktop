@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "阅典",
+  "productName": "微信读书阅读器",
   "version": "0.9.0",
   "identifier": "com.dengcb.reader",
   "build": {
