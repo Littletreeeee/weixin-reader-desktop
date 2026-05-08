@@ -241,20 +241,40 @@ let currentChapterIdx = 0;
 
 // Tauri invoke
 async function tauriInvoke(cmd, args) {
-    if (window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke) {
-        return window.__TAURI__.core.invoke(cmd, args);
+    // Tauri v2 API 路径
+    const t = window.__TAURI__;
+    if (t) {
+        // v2: window.__TAURI__.core.invoke
+        if (t.core && t.core.invoke) return t.core.invoke(cmd, args);
+        // v1 兼容: window.__TAURI__.invoke
+        if (t.invoke) return t.invoke(cmd, args);
+        // v1 兼容: window.__TAURI__.tauri.invoke
+        if (t.tauri && t.tauri.invoke) return t.tauri.invoke(cmd, args);
     }
+    // 全局 __TAURI_INVOKE__
+    if (window.__TAURI_INVOKE__) return window.__TAURI_INVOKE__(cmd, args);
+    console.error('[TauriInvoke] Tauri API 不可用，可用的全局变量:', Object.keys(window).filter(k => k.includes('TAURI')));
     throw new Error('Tauri API 不可用');
 }
 
 // ==================== 初始化 ====================
 async function init() {
-    // 检测网络
-    if (navigator.onLine) {
-        tryConnect();
-    } else {
+    // Tauri 离线页面加载时，navigator.onLine 可能不准确
+    // 所以先显示连接页面，用实际 fetch 测试网络
+    showConnectPage('正在检测网络...');
+    await updateOfflineHint();
+
+    // 实际测试网络连接
+    try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3000);
+        await fetch(TARGET_URL, { mode: 'no-cors', signal: controller.signal });
+        clearTimeout(timeoutId);
+        // 网络可用，跳转
+        window.location.href = TARGET_URL;
+    } catch(e) {
+        // 网络不可用，停留在离线页面
         showConnectPage('网络未连接');
-        updateOfflineHint();
     }
 
     // 监听网络变化
@@ -263,8 +283,6 @@ async function init() {
 
     // 快捷键
     document.addEventListener('keydown', handleKeydown);
-}
-    });
 }
 
 // ==================== 页面切换 ====================
@@ -282,24 +300,20 @@ function showConnectPage(msg) {
 }
 
 // ==================== 连接 ====================
-function tryConnect() {
+async function tryConnect() {
     document.getElementById('connect-status').textContent = '正在连接微信读书...';
     document.getElementById('connect-btn').disabled = true;
 
-    if (!navigator.onLine) {
+    try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3000);
+        await fetch(TARGET_URL, { mode: 'no-cors', signal: controller.signal });
+        clearTimeout(timeoutId);
+        window.location.href = TARGET_URL;
+    } catch(e) {
         showConnectPage('网络未连接');
         document.getElementById('connect-btn').disabled = false;
-        return;
     }
-
-    // 尝试连接
-    fetch(TARGET_URL, { mode: 'no-cors' })
-        .then(() => { window.location.href = TARGET_URL; })
-        .catch(() => { window.location.href = TARGET_URL; });
-
-    setTimeout(() => {
-        document.getElementById('connect-btn').disabled = false;
-    }, 3000);
 }
 
 // ==================== 离线提示 ====================
