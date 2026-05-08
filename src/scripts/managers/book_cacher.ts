@@ -1,27 +1,41 @@
 /**
- * BookCacher - 一键缓存整本书（自动翻页 + DOM提取）
+ * BookCacher - 一键缓存整本书（跨页面持久化）
  *
- * 策略：
- * 1. Cmd+S 触发一键缓存整本书
- * 2. 自动逐章翻页，等待渲染后从DOM提取文本
- * 3. 正常阅读时也自动缓存当前章节
- * 4. 通过 Tauri invoke 保存到本地文件系统
+ * 原理：
+ * 1. Cmd+S 触发，将缓存任务存入 localStorage
+ * 2. 导航到目标章节（页面重载）
+ * 3. inject.js 重新加载后，BookCacher 检测到未完成的任务
+ * 4. 提取当前页面内容，保存，导航到下一章
+ * 5. 重复直到所有章节完成
  */
 
 import { log } from '../core/logger';
 import { chapterManager } from '../core/chapter_manager';
 import { invoke } from '@tauri-apps/api/core';
 
+interface CacheTask {
+  bookId: string;
+  bookTitle: string;
+  chapters: { idx: number; title: string; url: string }[];
+  currentIndex: number;  // 当前正在缓存的章节索引
+  successCount: number;
+  failedCount: number;
+  originalUrl: string;   // 缓存完成后恢复的URL
+  startTime: number;
+}
+
+const TASK_KEY = 'book_cacher_task';
+
 export class BookCacher {
-  private isCaching = false;
-  private shouldStop = false;
-  private cachedChapterIdxs = new Set<number>();
-  private bookTitle: string = '';
   private lastAutoIdx: number = -1;
 
   constructor() {
     this.bindShortcut();
     this.setupAutoCache();
+
+    // 关键：检查是否有未完成的缓存任务
+    setTimeout(() => this.resumeTask(), 2000);
+
     log.info('[BookCacher] 初始化完成 (Cmd+S 一键缓存整本书)');
   }
 
@@ -31,32 +45,51 @@ export class BookCacher {
         e.preventDefault();
         e.stopPropagation();
 
-        if (this.isCaching) {
-          // 再按一次停止
-          this.shouldStop = true;
-          this.showToast('⏹ 停止缓存');
+        const task = this.getTask();
+        if (task) {
+          // 正在缓存中，按Cmd+S停止
+          this.stopTask();
+          this.showToast('⏹ 已停止缓存');
           return;
         }
 
-        this.cacheEntireBook();
+        this.startCacheEntireBook();
       }
     });
   }
 
-  /**
-   * 自动缓存：正常阅读时静默缓存当前章节
-   */
-  private setupAutoCache(): void {
-    setInterval(() => {
-      if (this.isCaching || !this.isReaderPage()) return;
-      this.silentCacheCurrentChapter();
-    }, 5000);
+  // ==================== 任务持久化 ====================
+
+  private getTask(): CacheTask | null {
+    try {
+      const raw = localStorage.getItem(TASK_KEY);
+      if (!raw) return null;
+      return JSON.parse(raw);
+    } catch { return null; }
   }
 
-  /**
-   * 一键缓存整本书
-   */
-  async cacheEntireBook(): Promise<void> {
+  private saveTask(task: CacheTask): void {
+    localStorage.setItem(TASK_KEY, JSON.stringify(task));
+  }
+
+  private clearTask(): void {
+    localStorage.removeItem(TASK_KEY);
+  }
+
+  private stopTask(): void {
+    const task = this.getTask();
+    this.clearTask();
+    if (task) {
+      // 恢复原来位置
+      setTimeout(() => {
+        window.location.href = task.originalUrl;
+      }, 500);
+    }
+  }
+
+  // ==================== 启动缓存 ====================
+
+  async startCacheEntireBook(): Promise<void> {
     if (!this.isReaderPage()) {
       this.showToast('📖 请先打开一本书再缓存');
       return;
@@ -84,111 +117,162 @@ export class BookCacher {
       return;
     }
 
-    // 获取书名
-    this.bookTitle = this.extractBookTitle();
+    const bookTitle = this.extractBookTitle();
 
-    this.isCaching = true;
-    this.shouldStop = false;
-
-    const total = chapters.length;
-    let success = 0;
-    let failed = 0;
-
-    this.showProgress(0, total, '准备缓存...');
-    log.info(`[BookCacher] 开始缓存「${this.bookTitle}」共 ${total} 章`);
-
-    // 记住当前位置，缓存结束后恢复
-    const originalUrl = window.location.href;
-
-    for (let i = 0; i < chapters.length; i++) {
-      if (this.shouldStop) break;
-
-      const ch = chapters[i];
-      const title = ch.title || `第${ch.chapterIdx + 1}章`;
-
-      this.updateProgress(i + 1, total, `正在缓存: ${title}`);
-
-      // 导航到该章节
-      const chapterUrl = chapterManager.buildChapterUrl(ch.chapterIdx);
-      if (!chapterUrl) {
-        failed++;
-        continue;
+    // 构建章节URL列表
+    const chapterList: { idx: number; title: string; url: string }[] = [];
+    for (const ch of chapters) {
+      const url = chapterManager.buildChapterUrl(ch.chapterIdx);
+      if (url) {
+        chapterList.push({ idx: ch.chapterIdx, title: ch.title || `第${ch.chapterIdx + 1}章`, url });
       }
-
-      try {
-        // 跳转到章节
-        window.location.href = chapterUrl;
-
-        // 等待页面渲染
-        await this.waitForContent(4000);
-
-        // 从DOM提取内容
-        const content = this.extractChapterContent();
-
-        if (content && content.length > 50) {
-          // 保存到文件系统
-          await invoke('save_book_cache', {
-            bookId,
-            chapterId: String(ch.chapterIdx),
-            title,
-            content,
-          });
-          success++;
-          this.cachedChapterIdxs.add(ch.chapterIdx);
-        } else {
-          failed++;
-          log.warn(`[BookCacher] 内容提取失败: ${title} (长度: ${content?.length || 0})`);
-        }
-      } catch (e) {
-        failed++;
-        log.warn(`[BookCacher] 缓存异常: ${title}`, e);
-      }
-
-      // 短暂延迟，避免过快
-      await this.delay(500);
     }
 
-    // 保存书名信息
+    if (!chapterList.length) {
+      this.showToast('❌ 无法生成章节URL');
+      return;
+    }
+
+    // 创建缓存任务
+    const task: CacheTask = {
+      bookId,
+      bookTitle,
+      chapters: chapterList,
+      currentIndex: 0,
+      successCount: 0,
+      failedCount: 0,
+      originalUrl: window.location.href,
+      startTime: Date.now(),
+    };
+
+    this.saveTask(task);
+
+    log.info(`[BookCacher] 开始缓存「${bookTitle}」共 ${chapterList.length} 章`);
+    this.showToast(`📥 开始缓存「${bookTitle}」${chapterList.length}章...`);
+
+    // 保存书名
     try {
       await invoke('save_book_cache', {
         bookId,
         chapterId: '__bookinfo__',
-        title: this.bookTitle,
-        content: JSON.stringify({
-          bookTitle: this.bookTitle,
-          totalChapters: total,
-          cachedChapters: success,
-          cachedAt: Date.now(),
-        }),
+        title: bookTitle,
+        content: JSON.stringify({ bookTitle, totalChapters: chapterList.length, cachedAt: Date.now() }),
       });
     } catch (e) {}
 
-    this.isCaching = false;
-    this.hideProgress();
+    // 导航到第一章
+    setTimeout(() => {
+      window.location.href = chapterList[0].url;
+    }, 1000);
+  }
 
-    // 恢复原来的阅读位置
-    if (!this.shouldStop) {
-      window.location.href = originalUrl;
+  // ==================== 恢复/继续缓存 ====================
+
+  /**
+   * 页面加载后检查是否有未完成的任务
+   */
+  private async resumeTask(): Promise<void> {
+    const task = this.getTask();
+    if (!task) return;
+
+    if (!this.isReaderPage()) {
+      // 不在阅读页，可能是首页，等待
+      return;
     }
 
-    const msg = this.shouldStop
-      ? `⏹ 已停止 (${success}/${total}章已缓存)`
-      : `✅ 缓存完成！${success}/${total}章 ${failed > 0 ? `(${failed}章失败)` : ''}`;
+    const total = task.chapters.length;
+    const idx = task.currentIndex;
 
-    log.info(`[BookCacher] ${msg}`);
-    // 等页面恢复后显示结果
-    setTimeout(() => this.showResult(success, failed, total), 1500);
+    if (idx >= total) {
+      // 已完成
+      this.finishTask(task);
+      return;
+    }
+
+    const ch = task.chapters[idx];
+    log.info(`[BookCacher] 继续缓存: ${ch.title} (${idx + 1}/${total})`);
+
+    // 显示进度条
+    this.showProgress(idx + 1, total, task.bookTitle, ch.title);
+
+    // 等待页面内容渲染
+    await this.waitForContent(5000);
+
+    // 提取内容
+    const content = this.extractChapterContent();
+
+    if (content && content.length > 50) {
+      try {
+        await invoke('save_book_cache', {
+          bookId: task.bookId,
+          chapterId: String(ch.idx),
+          title: ch.title,
+          content,
+        });
+        task.successCount++;
+        log.info(`[BookCacher] ✅ ${ch.title} (${content.length}字)`);
+      } catch (e) {
+        task.failedCount++;
+        log.warn(`[BookCacher] ❌ 保存失败: ${ch.title}`, e);
+      }
+    } else {
+      task.failedCount++;
+      log.warn(`[BookCacher] ❌ 提取失败: ${ch.title} (长度: ${content?.length || 0})`);
+    }
+
+    // 更新任务：前进到下一章
+    task.currentIndex = idx + 1;
+    this.saveTask(task);
+
+    if (task.currentIndex >= total) {
+      // 全部完成
+      this.finishTask(task);
+      return;
+    }
+
+    // 导航到下一章（短延迟）
+    const nextCh = task.chapters[task.currentIndex];
+    setTimeout(() => {
+      window.location.href = nextCh.url;
+    }, 800);
   }
 
   /**
-   * 静默缓存当前章节（自动缓存，不打扰用户）
+   * 缓存任务完成
    */
+  private finishTask(task: CacheTask): void {
+    this.clearTask();
+    const elapsed = Math.round((Date.now() - task.startTime) / 1000);
+
+    log.info(`[BookCacher] 缓存完成！成功: ${task.successCount}/${task.chapters.length}，用时: ${elapsed}秒`);
+
+    // 恢复原来的阅读位置
+    setTimeout(() => {
+      window.location.href = task.originalUrl;
+    }, 500);
+
+    // 显示结果（延迟等页面恢复后）
+    setTimeout(() => {
+      this.showResult(task.successCount, task.failedCount, task.chapters.length, elapsed);
+    }, 2000);
+  }
+
+  // ==================== 自动缓存 ====================
+
+  private setupAutoCache(): void {
+    setInterval(() => {
+      if (this.getTask()) return; // 有缓存任务时不干扰
+      if (!this.isReaderPage()) return;
+      this.silentCacheCurrentChapter();
+    }, 5000);
+  }
+
   private async silentCacheCurrentChapter(): Promise<void> {
     try {
       if (!chapterManager.isInitialized()) {
-        const bookIdMatch = window.location.pathname.match(/\/web\/reader\/([^/]+)/);
-        if (!bookIdMatch) return;
-        await chapterManager.initialize(bookIdMatch[1]);
+        const m = window.location.pathname.match(/\/web\/reader\/([^/]+)/);
+        if (!m) return;
+        await chapterManager.initialize(m[1]);
         if (!chapterManager.isInitialized()) return;
       }
 
@@ -196,65 +280,40 @@ export class BookCacher {
       if (!bookId) return;
 
       const chapterIdx = this.getCurrentChapterIdx();
-      if (chapterIdx < 0 || this.cachedChapterIdxs.has(chapterIdx)) return;
-      if (chapterIdx === this.lastAutoIdx) return;
+      if (chapterIdx < 0 || chapterIdx === this.lastAutoIdx) return;
 
       const content = this.extractChapterContent();
       if (!content || content.length < 50) return;
 
-      const chapterInfo = chapterManager.getChapterByIdx(chapterIdx);
-      const title = chapterInfo?.title || `第${chapterIdx + 1}章`;
+      const info = chapterManager.getChapterByIdx(chapterIdx);
+      const title = info?.title || `第${chapterIdx + 1}章`;
+      const bookTitle = this.extractBookTitle();
 
-      if (!this.bookTitle) this.bookTitle = this.extractBookTitle();
-
+      await invoke('save_book_cache', { bookId, chapterId: String(chapterIdx), title, content });
       await invoke('save_book_cache', {
-        bookId,
-        chapterId: String(chapterIdx),
-        title,
-        content,
+        bookId, chapterId: '__bookinfo__', title: bookTitle,
+        content: JSON.stringify({ bookTitle, cachedAt: Date.now() }),
       });
 
-      // 保存书名
-      await invoke('save_book_cache', {
-        bookId,
-        chapterId: '__bookinfo__',
-        title: this.bookTitle || '未知书名',
-        content: JSON.stringify({ bookTitle: this.bookTitle, cachedAt: Date.now() }),
-      });
-
-      this.cachedChapterIdxs.add(chapterIdx);
       this.lastAutoIdx = chapterIdx;
-      log.info(`[BookCacher] 自动缓存: ${title} (${this.cachedChapterIdxs.size}章)`);
-    } catch (e) {
-      // 静默失败
-    }
+      log.info(`[BookCacher] 自动缓存: ${title}`);
+    } catch (e) {}
   }
 
-  // ==================== 等待和检测 ====================
+  // ==================== DOM提取 ====================
 
-  /**
-   * 等待页面内容渲染完成
-   */
   private waitForContent(maxWait: number): Promise<void> {
     return new Promise((resolve) => {
       const start = Date.now();
       const check = () => {
         const content = this.extractChapterContent();
-        if (content && content.length > 50) {
-          resolve();
-          return;
-        }
-        if (Date.now() - start > maxWait) {
-          resolve(); // 超时也继续
-          return;
-        }
-        setTimeout(check, 300);
+        if (content && content.length > 50) { resolve(); return; }
+        if (Date.now() - start > maxWait) { resolve(); return; }
+        setTimeout(check, 400);
       };
-      setTimeout(check, 800); // 至少等800ms让页面开始渲染
+      setTimeout(check, 1000);
     });
   }
-
-  // ==================== DOM提取 ====================
 
   private extractChapterContent(): string {
     const selectors = [
@@ -267,37 +326,28 @@ export class BookCacher {
       '[class*="readerContent"]',
     ];
 
-    for (const selector of selectors) {
-      const el = document.querySelector(selector);
+    for (const sel of selectors) {
+      const el = document.querySelector(sel);
       if (el && el.textContent && el.textContent.trim().length > 50) {
-        return this.extractTextWithParagraphs(el as HTMLElement);
+        return this.extractText(el as HTMLElement);
       }
     }
     return '';
   }
 
-  private extractTextWithParagraphs(el: HTMLElement): string {
-    const paragraphs: string[] = [];
-    const pElements = el.querySelectorAll('p, [class*="paragraph"], .wr_readerNote_text');
-    
-    if (pElements.length > 0) {
-      pElements.forEach(p => {
-        const text = (p as HTMLElement).innerText?.trim();
-        if (text) paragraphs.push(text);
-      });
-    }
-
-    return paragraphs.length > 0 ? paragraphs.join('\n\n') : (el.innerText || '');
+  private extractText(el: HTMLElement): string {
+    const ps: string[] = [];
+    el.querySelectorAll('p, [class*="paragraph"]').forEach(p => {
+      const t = (p as HTMLElement).innerText?.trim();
+      if (t) ps.push(t);
+    });
+    return ps.length > 0 ? ps.join('\n\n') : (el.innerText || '');
   }
 
   private extractBookTitle(): string {
-    const pageTitle = document.title;
-    if (pageTitle && !pageTitle.includes('微信读书') && pageTitle.length > 1) {
-      return pageTitle.replace(/[-–—].*$/, '').trim();
-    }
-
-    const selectors = ['.readerTopBar_title_book', '.readerTopBar_title', '[class*="bookTitle"]'];
-    for (const sel of selectors) {
+    const t = document.title;
+    if (t && !t.includes('微信读书') && t.length > 1) return t.replace(/[-–—].*$/, '').trim();
+    for (const sel of ['.readerTopBar_title_book', '.readerTopBar_title', '[class*="bookTitle"]']) {
       const el = document.querySelector(sel);
       if (el?.textContent?.trim()) return el.textContent.trim();
     }
@@ -307,28 +357,13 @@ export class BookCacher {
   private getCurrentChapterIdx(): number {
     const chapters = chapterManager.getChapters();
     if (!chapters.length) return -1;
-
-    // 从DOM匹配章节标题
-    const selectors = ['.readerTopBar_title_chapter', '[class*="chapterTitle"]'];
-    for (const sel of selectors) {
+    for (const sel of ['.readerTopBar_title_chapter', '[class*="chapterTitle"]']) {
       const el = document.querySelector(sel);
       if (el?.textContent?.trim()) {
-        const title = el.textContent.trim();
-        const matched = chapters.find(ch => ch.title === title);
+        const matched = chapters.find(ch => ch.title === el!.textContent!.trim());
         if (matched) return matched.chapterIdx;
       }
     }
-
-    // 从URL匹配
-    const path = window.location.pathname;
-    for (const ch of chapters) {
-      const url = chapterManager.buildChapterUrl(ch.chapterIdx);
-      if (url) {
-        const seg = url.replace('https://weread.qq.com', '');
-        if (path === seg) return ch.chapterIdx;
-      }
-    }
-
     return 0;
   }
 
@@ -338,92 +373,70 @@ export class BookCacher {
 
   // ==================== UI ====================
 
-  private showProgress(current: number, total: number, text: string): void {
-    this.hideProgress();
+  private showProgress(current: number, total: number, bookTitle: string, chapterTitle: string): void {
+    document.getElementById('bc-progress')?.remove();
     const el = document.createElement('div');
     el.id = 'bc-progress';
     el.innerHTML = `
       <div style="
-        position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
-        background: rgba(0,0,0,0.9); color: white; padding: 16px 24px;
-        border-radius: 12px; font-size: 13px; z-index: 99999;
-        min-width: 320px; max-width: 420px; backdrop-filter: blur(12px);
-        box-shadow: 0 4px 24px rgba(0,0,0,0.3);
-        font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+        position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
+        background:rgba(0,0,0,0.92); color:white; padding:16px 24px;
+        border-radius:12px; font-size:13px; z-index:99999;
+        min-width:320px; max-width:420px; backdrop-filter:blur(12px);
+        box-shadow:0 4px 24px rgba(0,0,0,0.4);
+        font-family:-apple-system,BlinkMacSystemFont,sans-serif;
       ">
-        <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
-          <span style="font-weight:600;">📥 缓存「${this.bookTitle}」</span>
-          <span id="bc-count" style="opacity:0.7;">${current}/${total}</span>
+        <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+          <span style="font-weight:600;">📥 ${bookTitle}</span>
+          <span style="opacity:0.7;">${current}/${total}</span>
         </div>
-        <div style="background:rgba(255,255,255,0.15); border-radius:4px; height:6px; overflow:hidden; margin-bottom:8px;">
-          <div id="bc-bar" style="background:linear-gradient(90deg,#4CAF50,#8BC34A); height:100%;
-            width:${total > 0 ? (current/total*100) : 0}%; border-radius:4px; transition:width 0.3s;"></div>
+        <div style="background:rgba(255,255,255,0.15);border-radius:4px;height:6px;overflow:hidden;margin-bottom:8px;">
+          <div style="background:linear-gradient(90deg,#4CAF50,#8BC34A);height:100%;
+            width:${(current/total*100)}%;border-radius:4px;"></div>
         </div>
-        <div id="bc-text" style="opacity:0.6; font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${text}</div>
-        <div style="margin-top:8px; opacity:0.4; font-size:11px; text-align:center;">再按 Cmd+S 可停止</div>
+        <div style="opacity:0.6;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+          正在缓存: ${chapterTitle}
+        </div>
+        <div style="margin-top:6px;opacity:0.35;font-size:11px;text-align:center;">Cmd+S 停止</div>
       </div>
     `;
     document.body.appendChild(el);
   }
 
-  private updateProgress(current: number, total: number, text: string): void {
-    const c = document.getElementById('bc-count');
-    const b = document.getElementById('bc-bar');
-    const t = document.getElementById('bc-text');
-    if (c) c.textContent = `${current}/${total}`;
-    if (b) b.style.width = `${(current/total*100)}%`;
-    if (t) t.textContent = text;
-  }
-
-  private hideProgress(): void {
-    document.getElementById('bc-progress')?.remove();
-  }
-
-  private showResult(success: number, failed: number, total: number): void {
-    const emoji = failed === 0 ? '✅' : '⚠️';
+  private showResult(success: number, failed: number, total: number, seconds: number): void {
     const el = document.createElement('div');
     el.innerHTML = `
       <div style="
-        position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
-        background: rgba(0,0,0,0.9); color: white; padding: 16px 24px;
-        border-radius: 12px; font-size: 13px; z-index: 99999;
-        min-width: 300px; backdrop-filter: blur(12px);
-        box-shadow: 0 4px 24px rgba(0,0,0,0.3);
-        font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+        position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
+        background:rgba(0,0,0,0.92); color:white; padding:16px 24px;
+        border-radius:12px; font-size:13px; z-index:99999;
+        min-width:300px; backdrop-filter:blur(12px);
+        box-shadow:0 4px 24px rgba(0,0,0,0.4);
+        font-family:-apple-system,BlinkMacSystemFont,sans-serif;
       ">
-        <div style="font-weight:600; font-size:14px; margin-bottom:8px;">${emoji} 缓存完成</div>
-        <div style="opacity:0.8; font-size:12px;">
-          📖 ${success}/${total} 章已缓存${failed > 0 ? ` · ❌ ${failed} 章失败` : ''}<br>
-          📶 离线时可阅读已缓存的章节
+        <div style="font-weight:600;font-size:14px;margin-bottom:8px;">✅ 缓存完成</div>
+        <div style="opacity:0.8;font-size:12px;line-height:1.6;">
+          📖 ${success}/${total} 章已缓存${failed > 0 ? ` · ❌ ${failed}章失败` : ''}<br>
+          ⏱ 用时 ${seconds}秒<br>
+          📶 离线时可阅读
         </div>
-        <div style="margin-top:8px; opacity:0.4; font-size:11px; text-align:center;">3秒后关闭</div>
       </div>
     `;
     document.body.appendChild(el);
-    setTimeout(() => el.remove(), 3500);
+    setTimeout(() => el.remove(), 4000);
   }
 
-  private showToast(message: string): void {
+  private showToast(msg: string): void {
     const el = document.createElement('div');
-    el.innerHTML = `
-      <div style="
-        position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
-        background: rgba(0,0,0,0.85); color: white; padding: 12px 20px;
-        border-radius: 8px; font-size: 13px; z-index: 99999;
-        backdrop-filter: blur(8px); font-family: -apple-system, sans-serif;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-      ">${message}</div>
-    `;
+    el.innerHTML = `<div style="
+      position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
+      background:rgba(0,0,0,0.85);color:white;padding:12px 20px;
+      border-radius:8px;font-size:13px;z-index:99999;
+      backdrop-filter:blur(8px);font-family:-apple-system,sans-serif;
+    ">${msg}</div>`;
     document.body.appendChild(el);
     setTimeout(() => el.remove(), 2500);
   }
 
-  private delay(ms: number): Promise<void> {
-    return new Promise(r => setTimeout(r, ms));
-  }
-
-  public destroy(): void {
-    this.shouldStop = true;
-    this.isCaching = false;
-  }
+  public destroy(): void { this.clearTask(); }
 }
