@@ -371,17 +371,17 @@ async function showShelf() {
     listEl.innerHTML = '';
     for (const book of books) {
         const bookId = book.bookId || 'unknown';
-        const chapters = book.chapters || [];
+        const chapters = (book.chapters || []).filter(ch => ch.chapterId !== '__bookinfo__');
         const size = book.size || 0;
         const lastUpdated = book.lastUpdated || 0;
-        const firstChapterTitle = chapters[0]?.title || '未知章节';
+        const bookTitle = book.bookTitle || '未知书名';
 
         const card = document.createElement('div');
         card.className = 'book-card';
         card.onclick = () => openBook(bookId, chapters);
         card.innerHTML = `
             <div class="book-info">
-                <div class="book-title">📚 ${firstChapterTitle.split(' ')[0] || bookId.slice(0, 12)}</div>
+                <div class="book-title">📚 ${bookTitle}</div>
                 <div class="book-meta">${(size / 1024 / 1024).toFixed(1)}MB · 缓存于 ${formatTime(lastUpdated)}</div>
                 <div class="book-chapters">📖 ${chapters.length} 章已缓存</div>
             </div>

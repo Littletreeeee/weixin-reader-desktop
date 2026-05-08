@@ -654,24 +654,29 @@ fn update_book_index(cache_dir: &std::path::Path, book_id: &str, chapter_id: &st
     let mut index: serde_json::Value = if index_file.exists() {
         let content = std::fs::read_to_string(&index_file)
             .map_err(|e| format!("Failed to read index: {}", e))?;
-        serde_json::from_str(&content).unwrap_or(serde_json::json!({"bookId": book_id, "chapters": []}))
+        serde_json::from_str(&content).unwrap_or(serde_json::json!({"bookId": book_id, "chapters": [], "bookTitle": "未知书名"}))
     } else {
-        serde_json::json!({"bookId": book_id, "chapters": []})
+        serde_json::json!({"bookId": book_id, "chapters": [], "bookTitle": "未知书名"})
     };
     
-    // 添加或更新章节
-    if let Some(chapters) = index.get_mut("chapters").and_then(|c| c.as_array_mut()) {
-        // 检查是否已存在
-        let exists = chapters.iter().any(|ch| {
-            ch.get("chapterId").and_then(|c| c.as_str()) == Some(chapter_id)
-        });
-        
-        if !exists {
-            chapters.push(serde_json::json!({
-                "chapterId": chapter_id,
-                "title": title,
-                "timestamp": chrono::Utc::now().timestamp_millis()
-            }));
+    // 如果是书籍信息，更新书名
+    if chapter_id == "__bookinfo__" {
+        index["bookTitle"] = serde_json::json!(title);
+    } else {
+        // 添加或更新章节
+        if let Some(chapters) = index.get_mut("chapters").and_then(|c| c.as_array_mut()) {
+            // 检查是否已存在
+            let exists = chapters.iter().any(|ch| {
+                ch.get("chapterId").and_then(|c| c.as_str()) == Some(chapter_id)
+            });
+            
+            if !exists {
+                chapters.push(serde_json::json!({
+                    "chapterId": chapter_id,
+                    "title": title,
+                    "timestamp": chrono::Utc::now().timestamp_millis()
+                }));
+            }
         }
     }
     
